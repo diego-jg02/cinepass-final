@@ -5,8 +5,12 @@
 const TMDB_BASE='https://api.themoviedb.org/3', IMG='https://image.tmdb.org/t/p/';
 const MAX_SINOPSIS=300;
 window.SRC='local';
-const tmdbCred=()=>(localStorage.getItem('cp_tmdb')||(window.TMDB_CONFIG&&TMDB_CONFIG.token)||'').trim();
+// Producción: el token vive en el proxy (worker/tmdb-proxy.js), nunca en el código público.
+const tmdbProxy=()=>((window.TMDB_CONFIG&&TMDB_CONFIG.proxy)||'').trim().replace(/\/+$/,'');
+const tmdbCred=()=>(localStorage.getItem('cp_tmdb')||'').trim(); // token manual ("Configurar API"), solo en este navegador
 async function tj(path,c){
+  if(!c){const u=new URL(tmdbProxy()+path);u.searchParams.set('language','es-MX');   // vía proxy, sin credencial
+    const r=await fetch(u,{headers:{accept:'application/json'}});if(!r.ok)throw new Error('Proxy TMDB '+r.status);return r.json()}
   const jwt=c.length>60;                       // Read Access Token (JWT) → cabecera Bearer; si no, API key v3 → ?api_key=
   const u=new URL(TMDB_BASE+path);u.searchParams.set('language','es-MX');if(!jwt)u.searchParams.set('api_key',c);
   const r=await fetch(u,{headers:jwt?{Authorization:'Bearer '+c,accept:'application/json'}:{accept:'application/json'}});
@@ -35,12 +39,13 @@ function certif(m){const rs=(m.release_dates&&m.release_dates.results)||[];
 function mapear(m){const v=((m.videos&&m.videos.results)||[]).find(x=>x.site==='YouTube'&&x.type==='Trailer');
   return {id:m.id,t:m.title,g:(m.genres&&m.genres[0]&&m.genres[0].name)||'Cine',c:certif(m),d:m.runtime||100,i:['Español','Subtitulada'],fm:['2D','3D'],
     h:m.id%360,s:resumirSinopsis(m.overview),img:IMG+'w500'+m.poster_path,bd:m.backdrop_path?IMG+'w1280'+m.backdrop_path:'',yt:v?v.key:'',fecha:m.release_date||'',r:m.vote_average||0,dir:(((m.credits&&m.credits.crew)||[]).find(x=>x.job==='Director')||{}).name||'',cast:((m.credits&&m.credits.cast)||[]).slice(0,4).map(x=>x.name)}}
-async function loadMovies(){const c=tmdbCred();if(!c)return;
+async function loadMovies(){const c=tmdbCred(),px=tmdbProxy();if(!c&&!px)return;
+  const ck=(c||px).slice(-8)+'2';
   try{let ca=null;try{ca=JSON.parse(localStorage.getItem('cp_tmdb_cache'))}catch(e){}
-    if(!ca||Date.now()-ca.t>864e5||ca.k!==c.slice(-8)+'2'){                 // caché de 24 h para respetar los límites de uso
+    if(!ca||Date.now()-ca.t>864e5||ca.k!==ck){                 // caché de 24 h para respetar los límites de uso
       const l=await tj('/movie/now_playing?page=1',c);
       const full=await Promise.all(l.results.filter(m=>m.poster_path).slice(0,8).map(m=>tj(`/movie/${m.id}?append_to_response=videos,release_dates,credits&include_video_language=es,en`,c)));
-      ca={t:Date.now(),k:c.slice(-8)+'2',d:full};try{localStorage.setItem('cp_tmdb_cache',JSON.stringify(ca))}catch(e){}}
+      ca={t:Date.now(),k:ck,d:full};try{localStorage.setItem('cp_tmdb_cache',JSON.stringify(ca))}catch(e){}}
     const peliculas=ca.d.filter(m=>m.poster_path).map(mapear);
     if(peliculas.length<3)throw new Error('Respuesta insuficiente');
     PELIS.length=0;PELIS.push(...peliculas);buildFN();SRC='tmdb'}
