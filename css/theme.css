@@ -631,3 +631,34 @@ main.no-anim > *, body.booking main > *, .no-anim { animation: none !important; 
 
 .search-feedback{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0 20px;padding:10px 18px;border-radius:12px;background:rgba(255,154,31,.08);border:1px solid rgba(255,154,31,.25);font-size:.85rem}
 
+/* ---------- Menú hamburguesa (móvil / tablet) ---------- */
+.burger{display:none}
+@media(max-width:1000px){
+  .top{align-items:center}
+  .burger{
+    display:inline-flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;
+    width:44px;height:44px;margin-left:auto;padding:0;border-radius:50%;
+    background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--ink);cursor:pointer;
+    transition:background .25s,border-color .25s;
+  }
+  .burger:hover,.burger:focus-visible{background:rgba(255,255,255,.12);border-color:rgba(255,154,31,.5);outline:0}
+  .burger span{display:block;width:20px;height:2px;border-radius:2px;background:currentColor;transition:transform .25s var(--ease),opacity .2s}
+  .top.open .burger span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+  .top.open .burger span:nth-child(2){opacity:0}
+  .top.open .burger span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+
+  /* los hijos del nav pasan a ser hijos directos del encabezado */
+  #nav{display:contents}
+  .hs{order:3;width:100%;margin-top:8px}
+  /* cerrado: solo se ve el buscador; abierto: enlaces en columna */
+  .top:not(.open) #nav>:not(.hs){display:none}
+  .top.open #nav>:not(.hs){
+    order:4;display:block;width:100%;text-align:left;
+    padding:13px 16px;font-size:.95rem;border-radius:14px;
+  }
+  .top.open #nav>a:first-of-type{margin-top:10px}
+  .top.open #nav>.mut{padding:13px 16px;border-top:1px solid var(--line);border-radius:0;margin-top:6px}
+  .top.open #nav>.admin-badge{width:auto;display:inline-block;margin:6px 0 0 16px;padding:8px 16px}
+  .top.open #nav>#out{border:1px solid var(--line);text-align:center;margin-top:4px}
+}
+@media(max-width:420px){.logo-img{height:28px}}
