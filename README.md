@@ -5,13 +5,13 @@ También puedes abrir `index.html` con doble clic directamente en tu navegador.
 
 ## Cuentas de Acceso
 
+> Las contraseñas de las cuentas de prueba se comparten de forma privada con el equipo, no en este archivo.
+
 * **Administrador:**
   - Correo: `admin@cinepass.com`
-  - Contraseña: `Admin1234!`
   - Permite acceso al **Panel de Administración** (`#/admin`) con estadísticas de ingresos, boletos vendidos, gestión de reservas, dulcería, usuarios y copias de seguridad de la base de datos (JSON).
 * **Cliente:**
   - Correo: `demo@cinepass.test`
-  - Contraseña: `Demo1234!`
   - O puedes registrar una nueva cuenta con tu correo y contraseña segura.
 
 ## Nuevas Mejoras y Funcionalidades Implementadas
