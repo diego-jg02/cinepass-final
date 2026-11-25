@@ -13,6 +13,6 @@ const CLAS={A:'Todo público',B:'+12',C:'+16'};
 const FN=[];
 function buildFN(){FN.length=0;PELIS.forEach(p=>{for(let d=0;d<7;d++)['15:00','18:00','21:15'].forEach((h,k)=>{
   const t=new Date();t.setHours(0,0,0,0);t.setDate(t.getDate()+d);t.setHours(+h.slice(0,2),+h.slice(3));
-  FN.push({id:`${p.id}-${d}-${k}`,p:p.id,ini:t.getTime(),sala:1+(p.id+k)%3,fmt:p.fm[k%p.fm.length],idi:p.i[k%p.i.length]});});});}
+  FN.push({id:`${p.id}-${t.toLocaleDateString('sv')}-${k}`,p:p.id,ini:t.getTime(),sala:1+(p.id+k)%3,fmt:p.fm[k%p.fm.length],idi:p.i[k%p.i.length]});});});}
 buildFN(); // horarios, salas y asientos son SIEMPRE locales (TMDB no los ofrece)
 const MENU=[{id:'c1',n:'Palomitas grandes',c:'Combos',p:6},{id:'c2',n:'Combo pareja',c:'Combos',p:14},{id:'s1',n:'Nachos con queso',c:'Snacks',p:5},{id:'s2',n:'Hot dog',c:'Snacks',p:4},{id:'s3',n:'Chocolates',c:'Snacks',p:2.5},{id:'b1',n:'Refresco 22 oz',c:'Bebidas',p:3},{id:'b2',n:'Agua',c:'Bebidas',p:1.5},{id:'b3',n:'Café',c:'Bebidas',p:2.5}];

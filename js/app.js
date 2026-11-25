@@ -24,7 +24,11 @@ const users = () => {
   return u;
 };
 
-const reservas = () => ld('cp_r', []).filter(r => fn(r.fn));
+// Función de una reserva: la actual si sigue en cartelera, o la copia guardada al confirmar.
+const rf = r => fn(r.fn) || r.f;
+const rp = r => { const f = rf(r); return (f && peli(f.p)) || { t: r.pt || 'Película' }; };
+const todasRes = () => ld('cp_r', []); // usar SIEMPRE esta para guardar, así no se borran reservas antiguas
+const reservas = () => todasRes().filter(r => rf(r));
 const fmtDia = t => new Date(t).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' });
 const fmtHora = t => new Date(t).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 const fn = id => FN.find(f => f.id === id), peli = id => PELIS.find(p => p.id == id);
@@ -83,7 +87,9 @@ function nav() {
       F.q = e.target.value;
       HM = 99;
       if (location.hash !== '#/' && location.hash !== '#/cartelera' && location.hash !== '') {
-        go('#/cartelera');
+        // Al cambiar de página el buscador se vuelve a dibujar: pedimos devolverle el foco
+        const ir = () => { focoBusqueda = true; go('#/cartelera'); };
+        S.hold ? abandonar(ir) : ir();
       } else {
         const qCart = $('#q');
         if (qCart) qCart.value = F.q;
@@ -168,7 +174,13 @@ function route() {
   runTimer();
   main.focus();
   scrollTo(0, 0);
+  if (focoBusqueda) {
+    focoBusqueda = false;
+    const hi = $('#hs input');
+    if (hi) { hi.focus(); hi.setSelectionRange(hi.value.length, hi.value.length); }
+  }
 }
+let focoBusqueda = false;
 addEventListener('hashchange', route);
 /* ---------- Menú hamburguesa ---------- */
 (function () {
@@ -569,9 +581,10 @@ function asientos() {
       // Si venimos de editar reserva existente
       if (isEditing) {
         const cod = S.editingRes;
-        const allR = reservas();
+        const allR = todasRes();
         const resObj = allR.find(x => x.cod === cod);
-        if (resObj) {
+        if (!resObj) { release(); return go('#/reservas'); }
+        {
           resObj.seats = [...S.sel.seats];
           resObj.tot = total();
           resObj.hist.push(['Asientos modificados', 'Cliente', Date.now()]);
@@ -753,10 +766,11 @@ function pago() {
       const brandBadge = $('#card-brand');
       if (numInput) {
         numInput.oninput = e => {
-          let val = e.target.value.replace(/\D/g, '').slice(0, 16);
-          let formatted = val.match(/.{1,4}/g)?.join(' ') || val;
-          e.target.value = formatted;
-          const brand = detectCardBrand(val);
+          const brand = detectCardBrand(e.target.value);
+          const largo = brand === 'Amex' ? 15 : 16;
+          let val = e.target.value.replace(/\D/g, '').slice(0, largo);
+          // Amex se agrupa 4-6-5; el resto 4-4-4-4
+          e.target.value = brand === 'Amex' ? [val.slice(0, 4), val.slice(4, 10), val.slice(10)].filter(Boolean).join(' ') : (val.match(/.{1,4}/g)?.join(' ') || val);
           if (brandBadge) {
             if (brand) {
               brandBadge.textContent = brand;
@@ -765,7 +779,7 @@ function pago() {
               brandBadge.style.display = 'none';
             }
           }
-          if (val.length === 16) er('num', luhnCheck(val) ? '' : 'Número de tarjeta no válido.');
+          if (val.length === largo) er('num', luhnCheck(val) ? '' : 'Número de tarjeta no válido.');
           else er('num', '');
         };
       }
@@ -814,8 +828,8 @@ function pago() {
 
         if (!rawNum) {
           hasError = er('num', 'El número de tarjeta es obligatorio.') || hasError;
-        } else if (rawNum.length < 15 || rawNum.length > 16) {
-          hasError = er('num', 'El número debe tener 16 dígitos.') || hasError;
+        } else if (rawNum.length !== (detectCardBrand(rawNum) === 'Amex' ? 15 : 16)) {
+          hasError = er('num', detectCardBrand(rawNum) === 'Amex' ? 'American Express debe tener 15 dígitos.' : 'El número debe tener 16 dígitos.') || hasError;
         } else if (!luhnCheck(rawNum)) {
           hasError = er('num', 'Número de tarjeta inválido. Verifica los dígitos.') || hasError;
         } else er('num', '');
@@ -904,9 +918,11 @@ function confirmar(l4, metodo = 'Tarjeta') {
     l4,
     metodo,
     estado: 'Confirmada',
+    f: { ...f },
+    pt: peli(f.p).t,
     hist: [['Confirmada', 'Sistema (' + metodo + ')', Date.now()]]
   };
-  const a = reservas();
+  const a = todasRes();
   a.push(r);
   sv('cp_r', a);
   S.hold = 0; S.sel = null; S.res = { e: 'ok', cod };
@@ -925,17 +941,17 @@ function qr(c) {
 }
 
 function comprobante(r) {
-  const f = fn(r.fn), p = peli(f.p);
+  const f = rf(r), p = rp(r);
   return `
     <div class="ticket">
       <div>
         <p class="eyebrow">Comprobante de Entrada</p>
-        <div class="code">${r.cod}</div>
+        <div class="code">${esc(r.cod)}</div>
         <h3 style="margin-top:12px">${esc(p.t)}</h3>
         <p class="small">
           ${fmtDia(f.ini)}, ${fmtHora(f.ini)} · Sala ${f.sala} · ${f.fmt}<br>
-          Asientos: <b>${r.seats.join(', ')}</b><br>
-          Total: <b>${$$(r.tot)}</b> · Método: ${r.metodo || 'Tarjeta'}${r.l4 && r.l4 !== 'EFECTIVO' && r.l4 !== 'PAYPAL' ? ' ····' + r.l4 : ''}
+          Asientos: <b>${esc(r.seats.join(', '))}</b><br>
+          Total: <b>${$$(r.tot)}</b> · Método: ${esc(r.metodo || 'Tarjeta')}${r.l4 && r.l4 !== 'EFECTIVO' && r.l4 !== 'PAYPAL' ? ' ····' + esc(r.l4) : ''}
         </p>
       </div>
       ${qr(r.cod)}
@@ -1013,7 +1029,11 @@ function login() {
     $('#pe').textContent = pw ? '' : 'Escribe tu contraseña.';
     if ($('#ee').textContent || $('#pe').textContent) return;
 
-    const lk = ld('cp_lk', { n: 0, t: 0 });
+    // Bloqueo por cuenta (antes era global y bloqueaba a todos los usuarios)
+    const lks = ld('cp_lk', {});
+    if ('n' in lks) delete lks.n, delete lks.t; // formato antiguo
+    const lk = lks[em] || { n: 0, t: 0 };
+    const guardarLk = () => { lks[em] = lk; sv('cp_lk', lks); };
     if (lk.t > Date.now()) {
       $('#pe').textContent = 'Cuenta bloqueada temporalmente por intentos fallidos. Espera unos minutos.';
       return;
@@ -1023,12 +1043,12 @@ function login() {
     if (!u) {
       lk.n++;
       if (lk.n >= 5) { lk.t = Date.now() + 15 * 60000; lk.n = 0; }
-      sv('cp_lk', lk);
+      guardarLk();
       $('#pe').textContent = 'Correo o contraseña incorrectos.';
       return;
     }
 
-    sv('cp_lk', { n: 0, t: 0 });
+    delete lks[em]; sv('cp_lk', lks);
     S.user = { n: u.n, e: u.e, role: u.role || 'user' };
     const nx = S.next || '#/';
     S.next = null;
@@ -1162,7 +1182,7 @@ function registro() {
 /* ---------- P-13 Mis reservas ---------- */
 let tab = 'Próximas', qc = '';
 const mias = () => reservas().filter(r => r.u === S.user.e);
-const estado = r => r.estado === 'Confirmada' && fn(r.fn).ini < Date.now() ? 'Finalizada' : r.estado;
+const estado = r => r.estado === 'Confirmada' && rf(r).ini < Date.now() ? 'Finalizada' : r.estado;
 
 function reservasView() {
   if (!S.user) { S.next = '#/reservas'; save(); return go('#/login'); }
@@ -1178,11 +1198,11 @@ function reservasView() {
     <input id="qc" type="search" value="${esc(qc)}" style="max-width:260px" placeholder="CP-…">
     <div style="margin-top:20px">
       ${L.map(r => {
-        const f = fn(r.fn);
+        const f = rf(r);
         return `
-          <a class="li" href="#/reserva/${r.cod}">
+          <a class="li" href="#/reserva/${esc(r.cod)}">
             <span>
-              <b>${r.cod}</b> · ${esc(peli(f.p).t)}<br>
+              <b>${esc(r.cod)}</b> · ${esc(rp(r).t)}<br>
               <span class="mut small">${fmtDia(f.ini)}, ${fmtHora(f.ini)} · Sala ${f.sala} · ${r.seats.length} boletos</span>
             </span>
             <span class="badge b-${estado(r)}">${estado(r)}</span>
@@ -1206,7 +1226,7 @@ function reserva(cod) {
   const r = (S.user.role === 'admin' ? reservas() : mias()).find(x => x.cod === cod);
   if (!r) return main.innerHTML = `<section class="errp"><div><p class="eyebrow">Acceso denegado</p><h1>No tienes acceso a este recurso</h1><p class="mut">Esta reserva pertenece a otra cuenta.</p><a class="btn pri" href="#/">Volver al inicio</a></div></section>`;
 
-  const f = fn(r.fn), s = estado(r), puede = s === 'Confirmada' && f.ini - Date.now() > EDIT;
+  const f = rf(r), s = estado(r), puede = s === 'Confirmada' && !!fn(r.fn) && f.ini - Date.now() > EDIT;
   main.innerHTML = `
     <a class="link" href="#/reservas"><img class="ic" src="img/icons/arrow-left.png" alt="" aria-hidden="true"> Volver a mis reservas</a>
     <h1 style="margin-top:16px">Detalle de reserva <span class="badge b-${s}">${s}</span></h1>
@@ -1226,7 +1246,7 @@ function reserva(cod) {
   const edBtn = $('#ed');
   if (edBtn) {
     edBtn.onclick = () => {
-      modal(`<h2>¿Cambiar asientos de la reserva ${r.cod}?</h2><p>Podrás seleccionar nuevos asientos para tu función de <b>${esc(peli(f.p).t)}</b>.</p>`, [
+      modal(`<h2>¿Cambiar asientos de la reserva ${r.cod}?</h2><p>Podrás seleccionar nuevos asientos para tu función de <b>${esc(rp(r).t)}</b>.</p>`, [
         {
           l: 'Sí, cambiar asientos',
           c: 'pri',
@@ -1249,8 +1269,9 @@ function reserva(cod) {
       c: 'pri',
       f: () => {
         if (f.ini - Date.now() <= EDIT) return modal('<p>El plazo venció; ya no es posible cancelar.</p>', [{ l: 'Entendido', f: () => reserva(cod) }]);
-        const a = reservas();
+        const a = todasRes();
         const x = a.find(k => k.cod === cod);
+        if (!x) return reserva(cod);
         x.estado = 'Cancelada';
         x.hist.push(['Cancelada', S.user.role === 'admin' ? 'Administrador' : 'Cliente', Date.now()]);
         sv('cp_r', a);
@@ -1301,8 +1322,8 @@ function alimentos() {
         ${os.map(o => `
           <div class="li">
             <span>
-              <b>${o.cod}</b> <span class="badge b-${o.estado === 'Recibido' ? 'Confirmada' : 'Cancelada'}">${o.estado}</span><br>
-              <span class="mut small">${o.items.map(i => i[1] + ' × ' + i[0]).join(', ')} · ${$$(o.tot)}${o.res ? ' · Reserva ' + o.res : ''}</span>
+              <b>${esc(o.cod)}</b> <span class="badge b-${o.estado === 'Recibido' ? 'Confirmada' : 'Cancelada'}">${esc(o.estado)}</span><br>
+              <span class="mut small">${esc(o.items.map(i => i[1] + ' × ' + i[0]).join(', '))} · ${$$(o.tot)}${o.res ? ' · Reserva ' + esc(o.res) : ''}</span>
             </span>
             ${pending(o) ? `<span><button data-ed="${o.cod}">Editar</button> <button data-cx="${o.cod}">Cancelar</button></span>` : ''}
           </div>
@@ -1321,7 +1342,7 @@ function alimentos() {
           <label for="lk">Asociar a una reserva (opcional)</label>
           <select id="lk">
             <option value="">Sin reserva</option>
-            ${mine.map(r => `<option value="${r.cod}" ${S.link === r.cod ? 'selected' : ''}>${r.cod} · ${esc(peli(fn(r.fn).p).t)}</option>`).join('')}
+            ${mine.map(r => `<option value="${r.cod}" ${S.link === r.cod ? 'selected' : ''}>${esc(r.cod)} · ${esc(rp(r).t)}</option>`).join('')}
           </select>
         ` : ''}
         <div class="acts">
@@ -1392,7 +1413,7 @@ function adminView() {
       </section>`;
   }
 
-  const allRes = ld('cp_r', []).filter(r => fn(r.fn));
+  const allRes = reservas();
   const allOrders = ld('cp_o', []);
   const allUsers = users();
 
@@ -1442,7 +1463,7 @@ function adminView() {
         <div class="stat-card">
           <p class="eyebrow">Pedidos Dulcería</p>
           <div class="val">${allOrders.length}</div>
-          <div class="sub">${$$(allOrders.reduce((sum, o) => sum + (o.tot || 0), 0))} recaudados</div>
+          <div class="sub">${$$(allOrders.filter(o => o.estado !== 'Cancelado').reduce((sum, o) => sum + (o.tot || 0), 0))} recaudados</div>
         </div>
         <div class="stat-card">
           <p class="eyebrow">Usuarios en BD</p>
@@ -1474,21 +1495,21 @@ function adminView() {
           </thead>
           <tbody>
             ${allRes.map(r => {
-              const f = fn(r.fn), p = f ? peli(f.p) : null;
+              const f = rf(r), p = rp(r);
               return `
                 <tr>
-                  <td><b>${r.cod}</b></td>
+                  <td><b>${esc(r.cod)}</b></td>
                   <td>${esc(r.u)}</td>
-                  <td>${p ? esc(p.t) : '—'}</td>
+                  <td>${esc(p.t)}</td>
                   <td>${f ? fmtDia(f.ini) + ' ' + fmtHora(f.ini) : '—'}</td>
-                  <td>${r.seats.join(', ')}</td>
+                  <td>${esc(r.seats.join(', '))}</td>
                   <td><b>${$$(r.tot)}</b></td>
-                  <td>${r.metodo || 'Tarjeta'}</td>
-                  <td><span class="badge b-${r.estado}">${r.estado}</span></td>
+                  <td>${esc(r.metodo || 'Tarjeta')}</td>
+                  <td><span class="badge b-${esc(r.estado)}">${esc(r.estado)}</span></td>
                   <td>
                     <div class="acts-sm">
-                      <a class="btn" href="#/reserva/${r.cod}">Ver</a>
-                      ${r.estado === 'Confirmada' ? `<button data-cx-adm="${r.cod}">Cancelar</button>` : ''}
+                      <a class="btn" href="#/reserva/${esc(r.cod)}">Ver</a>
+                      ${r.estado === 'Confirmada' ? `<button data-cx-adm="${esc(r.cod)}">Cancelar</button>` : ''}
                     </div>
                   </td>
                 </tr>
@@ -1506,7 +1527,7 @@ function adminView() {
           l: 'Sí, cancelar',
           c: 'pri',
           f: () => {
-            const arr = reservas();
+            const arr = todasRes();
             const r = arr.find(x => x.cod === cod);
             if (r) {
               r.estado = 'Cancelada';
@@ -1548,15 +1569,15 @@ function adminView() {
           <tbody>
             ${allOrders.map(o => `
               <tr>
-                <td><b>${o.cod}</b></td>
+                <td><b>${esc(o.cod)}</b></td>
                 <td>${esc(o.u)}</td>
-                <td>${o.res || '—'}</td>
-                <td>${o.items.map(i => i[1] + '× ' + i[0]).join(', ')}</td>
+                <td>${esc(o.res || '—')}</td>
+                <td>${esc(o.items.map(i => i[1] + '× ' + i[0]).join(', '))}</td>
                 <td><b>${$$(o.tot)}</b></td>
-                <td><span class="badge b-${o.estado === 'Recibido' ? 'Confirmada' : 'Cancelada'}">${o.estado}</span></td>
+                <td><span class="badge b-${o.estado === 'Recibido' ? 'Confirmada' : 'Cancelada'}">${esc(o.estado)}</span></td>
                 <td>
                   <div class="acts-sm">
-                    ${o.estado === 'Recibido' ? `<button class="pri" data-deliv="${o.cod}">Entregar</button><button data-cx-ord="${o.cod}">Cancelar</button>` : '—'}
+                    ${o.estado === 'Recibido' ? `<button class="pri" data-deliv="${esc(o.cod)}">Entregar</button><button data-cx-ord="${esc(o.cod)}">Cancelar</button>` : '—'}
                   </div>
                 </td>
               </tr>
