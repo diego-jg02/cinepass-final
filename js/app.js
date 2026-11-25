@@ -171,17 +171,20 @@ function route() {
 }
 addEventListener('hashchange', route);
 /* ---------- Menú hamburguesa ---------- */
-const topBar = $('.top'), burger = $('#burger');
-function menu(abrir) {
-  topBar.classList.toggle('open', abrir);
-  burger.setAttribute('aria-expanded', abrir);
-  burger.setAttribute('aria-label', abrir ? 'Cerrar menú' : 'Abrir menú');
-}
-burger.onclick = () => menu(!topBar.classList.contains('open'));
-$('#nav').addEventListener('click', e => { if (e.target.closest('a,#out')) menu(false); });
-addEventListener('hashchange', () => menu(false));
-addEventListener('keydown', e => { if (e.key === 'Escape') menu(false); });
-addEventListener('resize', () => { if (innerWidth > 1000) menu(false); });
+(function () {
+  const topBar = $('.top'), burger = $('#burger');
+  if (!topBar || !burger) return; // si falta el botón en index.html, el resto de la app sigue funcionando
+  const menu = abrir => {
+    topBar.classList.toggle('open', abrir);
+    burger.setAttribute('aria-expanded', abrir);
+    burger.setAttribute('aria-label', abrir ? 'Cerrar menú' : 'Abrir menú');
+  };
+  burger.onclick = () => menu(!topBar.classList.contains('open'));
+  $('#nav').addEventListener('click', e => { if (e.target.closest('a,#out')) menu(false); });
+  addEventListener('hashchange', () => menu(false));
+  addEventListener('keydown', e => { if (e.key === 'Escape') menu(false); });
+  addEventListener('resize', () => { if (innerWidth > 1000) menu(false); });
+})();
 addEventListener('hashchange', () => document.querySelectorAll('dialog').forEach(d => d.remove()));
 const nofound = () => main.innerHTML = `<section class="errp"><div><p class="eyebrow">Error 404</p><h1>Esta sala no existe</h1><p class="mut">La dirección no corresponde a ninguna pantalla.</p><a class="btn pri" href="#/">Volver al inicio</a></div></section>`;
 const needSel = () => { if (!S.sel) { go('#/'); return true; } };
