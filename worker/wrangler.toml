@@ -1,0 +1,8 @@
+# Configuración para desplegar el proxy de TMDB en Cloudflare Workers (plan gratuito).
+#   npx wrangler login
+#   npx wrangler deploy --config worker/wrangler.toml
+#   npx wrangler secret put TMDB_TOKEN --config worker/wrangler.toml   (pega el API Read Access Token de TMDB)
+# La URL que imprime el deploy (https://cinepass-tmdb.<tu-subdominio>.workers.dev) va en js/config.js.
+name = "cinepass-tmdb"
+main = "tmdb-proxy.js"
+compatibility_date = "2025-09-01"
