@@ -24,6 +24,7 @@ npm run test:ui       :: modo interactivo: elegir y repetir pruebas una a una
 npm run reporte       :: abre el último reporte
 npm run informe       :: corre todo y genera el informe Word de evidencias
 npm run solo-informe  :: regenera el Word con la última corrida, sin volver a correr las pruebas
+npm run capturas-reales :: capturas ilustrativas con la cartelera real de TMDB (para el Anexo A)
 ```
 
 ## Informe de evidencias (Word)
@@ -39,7 +40,13 @@ Las capturas de cada paso clave las toma `captura()` en `utilidades.js` y se gua
 
 Si cambias lo que hace una prueba, actualiza su texto en `casos.js`.
 
-`evidencias/`, `resultados/`, `reporte/` y el `.docx` no se suben al repositorio (están en `.gitignore`).
+### Anexo A: la aplicación con TMDB en vivo
+
+`npm run capturas-reales` ejecuta `pruebas/capturas-reales.js`, que abre la app **sin bloquear TMDB**, espera a que carguen los pósters y toma 4 capturas (inicio, cartelera, detalle y selección de asientos) en `pruebas/capturas-reales/`. Después, `npm run solo-informe` agrega esas capturas al Word como **Anexo A**.
+
+No es una prueba: no lo corre `playwright test` ni GitHub Actions, porque depende de la red y de la cartelera de esa semana. Las capturas son solo ilustrativas; las pruebas usan las películas locales y TMDB simulado para dar siempre el mismo resultado. Si no existen esas capturas, el informe sale sin el anexo.
+
+`evidencias/`, `capturas-reales/`, `resultados/`, `reporte/` y el `.docx` no se suben al repositorio (están en `.gitignore`).
 
 Para correr un solo caso: `npx playwright test -g "CP-13" --headed`
 
@@ -63,6 +70,7 @@ Cada `push` y cada *pull request* corre las pruebas automáticamente (pestaña *
 | `generar-informe.js` | genera `informe-pruebas.docx` desde los resultados y las capturas |
 | `informe-datos.json` | integrantes que aparecen en la portada del informe |
 | `preparar.js` | vacía `evidencias/` antes de cada corrida |
+| `capturas-reales.js` | capturas ilustrativas con TMDB en vivo para el Anexo A (no es una prueba) |
 | `servidor.js` | servidor local que Playwright levanta solo (puerto 4173) |
 | `evidencias/` | capturas de cada paso clave, regeneradas en cada ejecución |
 | `resultados/` | `resultados.json` (reporter json) y artefactos de pruebas fallidas |

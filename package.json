@@ -10,7 +10,8 @@
     "test:ui": "playwright test --ui",
     "reporte": "playwright show-report pruebas/reporte",
     "informe": "playwright test && node pruebas/generar-informe.js",
-    "solo-informe": "node pruebas/generar-informe.js"
+    "solo-informe": "node pruebas/generar-informe.js",
+    "capturas-reales": "node pruebas/capturas-reales.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",

@@ -19,6 +19,19 @@ const SALIDA = path.join(__dirname, 'informe-pruebas.docx');
 const CASOS = require('./casos');
 const DATOS = JSON.parse(fs.readFileSync(path.join(__dirname, 'informe-datos.json'), 'utf8'));
 
+// Capturas ilustrativas con TMDB en vivo (npm run capturas-reales). Si no existen, el informe sale sin el Anexo A.
+const CARPETA_REALES = path.join(__dirname, 'capturas-reales');
+const REALES = (() => {
+  const archivo = path.join(CARPETA_REALES, 'capturas.json');
+  if (!fs.existsSync(archivo)) return null;
+  const d = JSON.parse(fs.readFileSync(archivo, 'utf8'));
+  d.capturas = (d.capturas || []).map((k) => ({ ...k, ruta: path.join(CARPETA_REALES, k.archivo) })).filter((k) => fs.existsSync(k.ruta));
+  if (!d.capturas.length) return null;
+  const dias = (Date.now() - new Date(d.fecha).getTime()) / 864e5;
+  if (dias > 7) console.warn(`Aviso: las capturas con TMDB en vivo tienen ${Math.floor(dias)} días; la cartelera pudo cambiar (npm run capturas-reales).`);
+  return d;
+})();
+
 if (!fs.existsSync(RESULTADOS)) {
   console.error('No existe pruebas/resultados/resultados.json. Corre primero las pruebas: npx playwright test');
   process.exit(1);
@@ -158,7 +171,10 @@ const proyecto = ((reporte.config && reporte.config.projects) || [])[0] || {};
 const versionPw = (reporte.config && reporte.config.version) || '';
 
 async function main() {
-const IMAGENES = await prepararImagenes([...new Set(casos.flatMap((c) => c.capturas.map((k) => k.ruta).filter(Boolean)))]);
+const IMAGENES = await prepararImagenes([...new Set([
+  ...casos.flatMap((c) => c.capturas.map((k) => k.ruta).filter(Boolean)),
+  ...(REALES ? REALES.capturas.map((k) => k.ruta) : []),
+])]);
 
 // ---------- Portada ----------
 const logo = tamanoPng(path.join(RAIZ, 'img', 'logo.png'));
@@ -270,15 +286,51 @@ casos.forEach((c, i) => {
   }
 });
 
+// ---------- Observaciones y limitaciones ----------
+const vineta = (t) => new Paragraph({ numbering: { reference: 'vinetas', level: 0 }, spacing: { after: 80, line: 276 }, children: [texto(t)] });
+const observaciones = [
+  new Paragraph({ heading: HeadingLevel.HEADING_1, pageBreakBefore: true, children: [texto('4. Observaciones y limitaciones')] }),
+  vineta(REALES
+    ? 'Las pruebas automatizadas usan las películas locales y TMDB simulado para dar siempre el mismo resultado; las capturas con la cartelera real del Anexo A son solo ilustrativas y dependen de las películas en cines esa semana.'
+    : 'Las pruebas automatizadas usan las películas locales y TMDB simulado para dar siempre el mismo resultado; la cartelera real de TMDB cambia cada semana y por eso no se usa en las pruebas.'),
+  vineta('Las pruebas se ejecutan solo en Chromium de escritorio (ventana de 1366 × 820); no se probaron otros navegadores ni pantallas de celular.'),
+  vineta('CinePass no tiene servidor propio: usuarios, reservas y pedidos se guardan en el almacenamiento local del navegador, y los pagos se validan en pantalla sin conectarse a un banco ni a una pasarela de pago.'),
+  vineta('Los horarios, las salas y los asientos son datos locales de demostración; TMDB solo aporta la información de las películas.'),
+];
+
 // ---------- Conclusión ----------
 const conclusion = [
-  new Paragraph({ heading: HeadingLevel.HEADING_1, pageBreakBefore: true, children: [texto('4. Conclusión')] }),
+  new Paragraph({ heading: HeadingLevel.HEADING_1, pageBreakBefore: true, children: [texto('5. Conclusión')] }),
   parrafo(`De los ${casos.length} casos ejecutados, ${aprobadas} fueron aprobados y ${fallidas} fallaron. El tiempo total de la ejecución fue de ${duracionLarga(stats.duration || 0)} y se tomaron ${figura} capturas de evidencia.`),
   fallidas
     ? parrafo(`Los casos que fallaron fueron: ${casos.filter((c) => !c.aprobada).map((c) => c.id).join(', ')}. El detalle del error de cada uno aparece en su sección y en el reporte HTML de Playwright (pruebas/reporte), que guarda la traza para revisarla paso a paso.`)
     : parrafo('Todos los casos se cumplieron: la aplicación responde como se espera en la cartelera y la búsqueda, el registro y el inicio de sesión, la compra con sus validaciones de pago, la gestión de reservas, el carrito de alimentos, el control de acceso al panel de administración y la carga de películas desde TMDB, incluido el respaldo con películas locales cuando TMDB no responde.'),
   parrafo('Las pruebas se pueden repetir en cualquier momento con el comando npm run informe, que vuelve a ejecutar los casos y genera este documento con los resultados y capturas de esa corrida. En GitHub Actions se ejecutan en cada push y pull request, y el informe, las capturas y los resultados quedan disponibles para descargar.'),
 ];
+
+// ---------- Anexo A: la aplicación con TMDB en vivo (solo si se corrió pruebas/capturas-reales.js) ----------
+const anexo = [];
+if (REALES) {
+  const tomadas = new Date(REALES.fecha);
+  anexo.push(
+    new Paragraph({ heading: HeadingLevel.HEADING_1, pageBreakBefore: true, children: [texto('Anexo A. La aplicación con TMDB en vivo')] }),
+    parrafo(`Estas capturas muestran CinePass con la cartelera real de TMDB. Se tomaron el ${fechaLarga(tomadas)} a las ${horaCorta(tomadas)} con el script pruebas/capturas-reales.js, que abre la aplicación sin bloquear TMDB y espera a que carguen los pósters antes de cada captura.`),
+    parrafo([texto('Importante: ', { bold: true }), texto('las capturas son ilustrativas. Dependen de las películas que estaban en cines esa semana, así que cambian de una semana a otra. Por eso no forman parte de las pruebas automatizadas, que usan las películas locales y TMDB simulado para dar siempre el mismo resultado.')]),
+    parrafo(`Películas que devolvió TMDB ese día: ${REALES.peliculas.join(', ')}.`),
+  );
+  REALES.capturas.forEach((k, n) => {
+    const img = IMAGENES.get(k.ruta);
+    anexo.push(new Paragraph({ alignment: AlignmentType.CENTER, keepNext: true, spacing: { before: 160, after: 60 }, children: [
+      new ImageRun({ type: img.tipo, data: img.datos, transformation: { width: ANCHO_IMG, height: Math.round(ANCHO_IMG * img.alto / img.ancho) },
+        altText: { title: k.pie, description: k.pie, name: k.archivo } }),
+    ] }));
+    anexo.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 200 }, children: [
+      texto(`Figura A.${n + 1}. `, { bold: true, size: 18, color: '404040' }),
+      texto(k.pie, { italics: true, size: 18, color: '404040' }),
+      texto(`  (${k.archivo})`, { size: 16, color: '808080' }),
+    ] }));
+  });
+}
 
 // ---------- Documento ----------
 const encabezado = new Header({ children: [new Paragraph({
@@ -307,13 +359,17 @@ const doc = new Document({
         run: { font: FUENTE, size: 23, bold: true, color: '2F5496' }, paragraph: { spacing: { before: 160, after: 60 }, keepNext: true, outlineLevel: 2 } },
     ],
   },
-  numbering: { config: [{ reference: 'pasos', levels: [{ level: 0, format: LevelFormat.DECIMAL, text: '%1.', alignment: AlignmentType.LEFT,
-    style: { paragraph: { indent: { left: 540, hanging: 360 } } } }] }] },
+  numbering: { config: [
+    { reference: 'pasos', levels: [{ level: 0, format: LevelFormat.DECIMAL, text: '%1.', alignment: AlignmentType.LEFT,
+      style: { paragraph: { indent: { left: 540, hanging: 360 } } } }] },
+    { reference: 'vinetas', levels: [{ level: 0, format: LevelFormat.BULLET, text: '•', alignment: AlignmentType.LEFT,
+      style: { paragraph: { indent: { left: 540, hanging: 360 } } } }] },
+  ] },
   sections: [
     { properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 } } }, children: portada },
     { properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 } } },
       headers: { default: encabezado }, footers: { default: pie },
-      children: [...introduccion, ...resumen, ...secciones, ...conclusion] },
+      children: [...introduccion, ...resumen, ...secciones, ...observaciones, ...conclusion, ...anexo] },
   ],
 });
 
@@ -323,6 +379,7 @@ const buf = await Packer.toBuffer(doc);
   console.log(`Informe generado: ${path.relative(RAIZ, SALIDA)}`);
   console.log(`  ${casos.length} casos · ${aprobadas} aprobados · ${fallidas} fallidos · ${figura} capturas · ${duracionLarga(stats.duration || 0)}`);
   if (sinCapturas.length) console.warn(`  Casos sin capturas: ${sinCapturas.join(', ')}`);
+  console.log(REALES ? `  Anexo A con ${REALES.capturas.length} capturas de TMDB en vivo (${fechaLarga(new Date(REALES.fecha))})` : '  Sin Anexo A (no hay capturas de TMDB en vivo; se toman con npm run capturas-reales)');
 }
 
 main().catch((e) => {
