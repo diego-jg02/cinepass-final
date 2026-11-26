@@ -24,6 +24,13 @@ async function captura(page, testInfo, nombre) {
 }
 
 async function abrir(page, ruta = '') {
+  // Las pruebas usan las 8 películas locales de js/data.js (ids 1-8, "Nocturno en Colón", etc.).
+  // Se bloquea TMDB (proxy de Cloudflare e imágenes) para que la cartelera sea siempre la misma
+  // y no cambie con lo que esté en cines esa semana. La app cae sola a los datos locales.
+  if (!page._sinTmdb) {
+    page._sinTmdb = true;
+    await page.route(/workers\.dev|themoviedb\.org/, (r) => r.abort());
+  }
   await page.goto(`/index.html#/${ruta}`, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#nav')).not.toBeEmpty();
 }
