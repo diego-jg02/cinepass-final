@@ -1,0 +1,33 @@
+name: Pruebas E2E (Playwright)
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:   # permite correrlas a mano desde la pestaña Actions
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Instalar dependencias
+        run: npm ci || npm install
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Correr las pruebas
+        run: npx playwright test
+        env:
+          TZ: America/Panama
+      - name: Guardar reporte y capturas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-pruebas-cinepass
+          path: |
+            pruebas/reporte/
+            pruebas/capturas/
+          retention-days: 30

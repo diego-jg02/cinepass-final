@@ -1,0 +1,16 @@
+{
+  "name": "cinepass",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CinePass — reserva de entradas de cine. Pruebas E2E con Playwright.",
+  "scripts": {
+    "servidor": "node pruebas/servidor.js",
+    "test": "playwright test",
+    "test:ver": "playwright test --headed --workers=1",
+    "test:ui": "playwright test --ui",
+    "reporte": "playwright show-report pruebas/reporte"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1"
+  }
+}
