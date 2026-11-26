@@ -1,9 +1,11 @@
 // Configuración de Playwright para CinePass.
+const os = require('os');
 const { defineConfig, devices } = require('@playwright/test');
 
 module.exports = defineConfig({
   testDir: './pruebas',
-  outputDir: './pruebas/resultados',
+  outputDir: './pruebas/resultados/artefactos',   // trazas y capturas automáticas cuando una prueba falla
+  globalSetup: './pruebas/preparar.js',           // vacía pruebas/evidencias/ antes de cada corrida
   fullyParallel: false,
   workers: 1,                       // en orden, para que se vea claro al presentar
   retries: 0,
@@ -11,14 +13,19 @@ module.exports = defineConfig({
   reporter: [
     ['list'],
     ['html', { outputFolder: 'pruebas/reporte', open: 'never' }],
-    ['json', { outputFile: 'pruebas/reporte/resultados.json' }],
+    ['json', { outputFile: 'pruebas/resultados/resultados.json' }],   // lo lee pruebas/generar-informe.js
   ],
+  // Datos del entorno que quedan en resultados.json y se muestran en el informe Word
+  metadata: {
+    sistema: process.platform === 'win32' ? `${os.version()} (${os.release()}, ${os.arch()})` : `${os.type()} ${os.release()} (${os.arch()})`,
+    node: process.version,
+  },
   use: {
     baseURL: 'http://localhost:4173',
     locale: 'es-PA',
     timezoneId: 'America/Panama',
     viewport: { width: 1366, height: 820 },
-    screenshot: 'on',
+    screenshot: 'only-on-failure',   // las evidencias de cada paso las toma captura() en utilidades.js
     trace: 'retain-on-failure',
     launchOptions: {
       // LENTO=400 ralentiza cada acción (ms) para que la clase pueda seguir los pasos en pantalla

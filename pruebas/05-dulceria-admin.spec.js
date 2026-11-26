@@ -10,11 +10,11 @@ test.describe('Alimentos y bebidas', () => {
     await page.getByRole('button', { name: 'Agregar Refresco 22 oz' }).click();    // $3.00
     await page.getByRole('button', { name: 'Agregar Refresco 22 oz' }).click();    // $3.00
     await expect(page.locator('#cart-aside .total')).toHaveText('$20.00');
-    await captura(page, info, 'carrito');
+    await captura(page, info, 'carrito', 'Carrito con un Combo pareja y 2 refrescos: total $20.00');
     await page.click('#ok');
     await expect(page.locator('dialog')).toContainText('confirmado');
     await expect(page.locator('dialog')).toContainText('$20.00');
-    await captura(page, info, 'pedido-confirmado');
+    await captura(page, info, 'pedido-confirmado', 'Pedido de alimentos confirmado por $20.00');
     await page.getByRole('button', { name: 'Entendido' }).click();
     await expect(page.locator('#my-orders .li')).toHaveCount(1);
     await expect(page.locator('#my-orders')).toContainText('Recibido');
@@ -27,7 +27,7 @@ test.describe('Panel de administración', () => {
     await abrir(page, 'admin');
     await expect(page.locator('main')).toContainText('uso exclusivo para administradores');
     await expect(page.locator('#nav')).not.toContainText('Panel Admin');
-    await captura(page, info, 'acceso-restringido');
+    await captura(page, info, 'acceso-restringido', 'Un cliente que entra a #/admin ve que es de uso exclusivo para administradores');
   });
 
   test('CP-24 El administrador ve métricas y las reservas de los clientes', async ({ page }, info) => {
@@ -40,11 +40,11 @@ test.describe('Panel de administración', () => {
     await abrir(page, 'admin');
     await expect(page.getByRole('heading', { name: 'Panel de Control CinePass' })).toBeVisible();
     await expect(page.locator('.stat-card').nth(2).locator('.val')).toHaveText('1');   // reservas confirmadas
-    await captura(page, info, 'resumen-general');
+    await captura(page, info, 'resumen-general', 'Panel de control del administrador con 1 reserva confirmada');
     await page.getByRole('tab', { name: /Todas las Reservas/ }).click();
     await expect(page.locator('#adm-tbl-res tbody')).toContainText(codigo);
     await page.fill('#adm-q-res', codigo);
     await expect(page.locator('#adm-tbl-res tbody tr:visible')).toHaveCount(1);
-    await captura(page, info, 'tabla-reservas');
+    await captura(page, info, 'tabla-reservas', 'Tabla de reservas filtrada por el código de la compra');
   });
 });

@@ -3,8 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const { expect } = require('@playwright/test');
 
-const CARPETA_CAPTURAS = path.join(__dirname, 'capturas');
-fs.mkdirSync(CARPETA_CAPTURAS, { recursive: true });
+// Las capturas de evidencia van a pruebas/evidencias/ (se vacía al inicio de cada corrida en preparar.js).
+const CARPETA_EVIDENCIAS = path.join(__dirname, 'evidencias');
+fs.mkdirSync(CARPETA_EVIDENCIAS, { recursive: true });
 
 // Cuentas sembradas por la app en js/app.js (se pueden sobrescribir con variables de entorno).
 const DEMO = { e: 'demo@cinepass.test', p: process.env.CP_DEMO_PASS || 'Demo1234!' };
@@ -13,14 +14,19 @@ const ADMIN = { e: 'admin@cinepass.com', p: process.env.CP_ADMIN_PASS || 'Admin1
 // Tarjeta de prueba estándar (pasa el algoritmo de Luhn). No es una tarjeta real.
 const TARJETA = { nombre: 'Maria Gonzalez', numero: '4111111111111111', venc: '12/30', cvv: '123' };
 
-/** Toma una captura con nombre fijo (para el informe) y la adjunta al reporte HTML. */
-async function captura(page, testInfo, nombre) {
+/**
+ * Captura de evidencia de un paso clave: la guarda como pruebas/evidencias/CP-01_1_cartelera.png
+ * y la adjunta al reporte con testInfo.attach(). La descripción es el pie de foto del informe Word.
+ */
+async function captura(page, testInfo, nombre, descripcion = nombre) {
   const id = (testInfo.title.match(/^CP-\d+/) || ['CP'])[0];
-  const n = String((testInfo._capturas = (testInfo._capturas || 0) + 1)).padStart(2, '0');
-  const archivo = path.join(CARPETA_CAPTURAS, `${id}-${n}-${nombre}.png`);
+  const n = (testInfo._capturas = (testInfo._capturas || 0) + 1);
+  const archivo = path.join(CARPETA_EVIDENCIAS, `${id}_${n}_${nombre}.png`);
   await page.waitForTimeout(250); // deja terminar transiciones CSS
   await page.screenshot({ path: archivo, fullPage: false });
-  await testInfo.attach(`${n} · ${nombre}`, { path: archivo, contentType: 'image/png' });
+  await testInfo.attach(descripcion, { path: archivo, contentType: 'image/png' });
+  // Playwright guarda el adjunto con otro nombre; la anotación conserva el archivo de evidencias/ para el informe Word
+  testInfo.annotations.push({ type: 'evidencia', description: `${path.basename(archivo)} | ${descripcion}` });
 }
 
 async function abrir(page, ruta = '') {

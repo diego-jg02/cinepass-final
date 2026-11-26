@@ -22,12 +22,18 @@ jobs:
         run: npx playwright test
         env:
           TZ: America/Panama
-      - name: Guardar reporte y capturas
+      - name: Generar informe Word
+        if: always()   # también si alguna prueba falla, para que el informe muestre cuál
+        run: node pruebas/generar-informe.js
+      - name: Guardar informe, evidencias y resultados
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: reporte-pruebas-cinepass
+          name: informe-pruebas-cinepass
           path: |
+            pruebas/informe-pruebas.docx
+            pruebas/evidencias/
+            pruebas/resultados/
             pruebas/reporte/
-            pruebas/capturas/
+          if-no-files-found: warn
           retention-days: 30

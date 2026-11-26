@@ -14,7 +14,7 @@ test.describe('Películas desde TMDB (simulado)', () => {
     await expect(page.locator('#res .film h3')).toHaveText(['El faro del Pacífico', 'Ciudad de lluvia', 'Pequeños gigantes', 'Medianoche en el canal']);
     await expect(page.getByText('Película sin póster')).toHaveCount(0);
     await expect(page.getByText('Nocturno en Colón')).toHaveCount(0);
-    await captura(page, info, 'cartelera-desde-tmdb');
+    await captura(page, info, 'cartelera-tmdb', 'Cartelera con las 4 películas que devuelve TMDB (simulado)');
 
     // La app llama al proxy sin credenciales: 1 listado + 4 detalles, en español
     expect(llamadas.map((l) => l.ruta)).toEqual(['/movie/now_playing', '/movie/9001', '/movie/9002', '/movie/9003', '/movie/9004']);
@@ -32,7 +32,7 @@ test.describe('Películas desde TMDB (simulado)', () => {
     await expect(page.locator('.facts')).toContainText('Ana Castillo');
     await expect(page.locator('.facts')).toContainText('7.8');
     await expect(page.getByText('Reparto: Sofía Ramos, Diego Herrera, Lucía Méndez, Tomás Vega')).toBeVisible();
-    await captura(page, info, 'detalle-desde-tmdb');
+    await captura(page, info, 'detalle-tmdb', 'Detalle de "El faro del Pacífico" con director, valoración y reparto de TMDB');
 
     // Los horarios siguen siendo locales: 3 funciones al día también para películas de TMDB
     await page.locator('.days [data-d="1"]').click();
@@ -56,6 +56,6 @@ test.describe('Películas desde TMDB (simulado)', () => {
     await expect(page.locator('#res .film h3', { hasText: 'Nocturno en Colón' })).toBeVisible();
     await expect(page.getByText('El faro del Pacífico')).toHaveCount(0);
     expect(llamadas.length).toBeGreaterThan(0); // sí intentó conectarse con TMDB
-    await captura(page, info, 'respaldo-local');
+    await captura(page, info, 'respaldo-local', 'TMDB responde con error y la cartelera muestra las 8 películas locales');
   });
 });

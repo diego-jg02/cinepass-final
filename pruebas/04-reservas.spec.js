@@ -10,19 +10,19 @@ test.describe('Gestión de reservas', () => {
     await expect(page.locator('.li')).toHaveCount(1);
     await expect(page.locator('.li')).toContainText(codigo);
     await expect(page.locator('.li .badge')).toHaveText('Confirmada');
-    await captura(page, info, 'mis-reservas');
+    await captura(page, info, 'mis-reservas', 'La reserva comprada aparece en "Mis reservas" como Confirmada');
     await page.fill('#qc', codigo.slice(0, 5));
     await expect(page.locator('.li')).toHaveCount(1);
     await page.fill('#qc', 'CP-NOEXISTE');
     await expect(page.locator('main .msg')).toContainText('No encontramos reservas con ese código');
-    await captura(page, info, 'busqueda-sin-resultado');
+    await captura(page, info, 'busqueda-sin-resultado', 'Búsqueda de un código inexistente: "No encontramos reservas con ese código"');
   });
 
   test('CP-19 El cliente puede cambiar los asientos de una reserva confirmada', async ({ page }, info) => {
     await registrarse(page);
     const { codigo, asientos } = await comprar(page);
     await abrir(page, `reserva/${codigo}`);
-    await captura(page, info, 'detalle-antes');
+    await captura(page, info, 'detalle-antes', 'Detalle de la reserva antes del cambio');
     await page.click('#ed');
     await page.getByRole('button', { name: 'Sí, cambiar asientos' }).click();
     await expect(page.locator('main .msg.ok').first()).toContainText(`Modificando reserva ${codigo}`);
@@ -35,13 +35,13 @@ test.describe('Gestión de reservas', () => {
       nuevos.push(id);
       await libres.nth(i).click();
     }
-    await captura(page, info, 'nuevos-asientos');
+    await captura(page, info, 'nuevos-asientos', 'Selección de 2 asientos nuevos');
     await page.getByRole('button', { name: 'Guardar nuevos asientos' }).click();
     await expect(page.locator('dialog')).toContainText(`Reserva ${codigo} actualizada`);
     await page.getByRole('button', { name: 'Ver mi reserva' }).click();
     await expect(page.locator('.ticket')).toContainText(nuevos.join(', '));
     await expect(page.locator('main ul.small')).toContainText('Asientos modificados');
-    await captura(page, info, 'detalle-actualizado');
+    await captura(page, info, 'detalle-actualizado', 'Reserva con los asientos nuevos y el historial "Asientos modificados"');
   });
 
   test('CP-20 El cliente puede cancelar una reserva y queda registrada como cancelada', async ({ page }, info) => {
@@ -50,12 +50,12 @@ test.describe('Gestión de reservas', () => {
     await abrir(page, `reserva/${codigo}`);
     await page.click('#cx');
     await expect(page.locator('dialog')).toContainText(`¿Cancelar la reserva ${codigo}?`);
-    await captura(page, info, 'confirmar-cancelacion');
+    await captura(page, info, 'confirmar-cancelacion', 'Diálogo de confirmación para cancelar la reserva');
     await page.getByRole('button', { name: 'Sí, cancelar reserva' }).click();
     await expect(page.locator('h1 .badge')).toHaveText('Cancelada');
     await expect(page.locator('main .msg.ok')).toContainText('reembolso total');
     await expect(page.locator('#cx')).toBeDisabled();
-    await captura(page, info, 'reserva-cancelada');
+    await captura(page, info, 'reserva-cancelada', 'Reserva marcada como Cancelada con aviso de reembolso total');
     await abrir(page, 'reservas');
     await page.getByRole('tab', { name: 'Canceladas' }).click();
     await expect(page.locator('.li')).toContainText(codigo);
@@ -78,7 +78,7 @@ test.describe('Gestión de reservas', () => {
     await registrarse(b, 'Usuario Dos');
     await abrir(b, `reserva/${codigo}`);
     await expect(b.getByRole('heading', { name: 'No tienes acceso a este recurso' })).toBeVisible();
-    await captura(b, info, 'acceso-denegado');
+    await captura(b, info, 'acceso-denegado', 'Otra cuenta intenta abrir la reserva: "No tienes acceso a este recurso"');
     await ctxB.close();
   });
 });

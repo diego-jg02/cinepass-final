@@ -17,5 +17,8 @@ echo Se abrira Chrome y veras cada prueba ejecutarse en pantalla.
 set LENTO=350
 call npx playwright test --headed --workers=1
 echo.
+echo Generando el informe Word (pruebas\informe-pruebas.docx)...
+call node pruebas/generar-informe.js
+echo.
 echo Abriendo el reporte con resultados y capturas...
 call npx playwright show-report pruebas/reporte
