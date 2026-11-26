@@ -1,6 +1,8 @@
 # Pruebas automatizadas de CinePass (Playwright)
 
-24 pruebas de extremo a extremo (E2E) que recorren la app como lo haría un usuario real: cartelera, búsqueda, cuentas, compra, reservas, dulcería y panel de administración.
+26 pruebas de extremo a extremo (E2E) que recorren la app como lo haría un usuario real: cartelera, búsqueda, cuentas, compra, reservas, dulcería, panel de administración y conexión con TMDB.
+
+**Sobre TMDB:** las pruebas CP-01 a CP-24 bloquean TMDB y usan siempre las 8 películas locales de `js/data.js`, para que el resultado no cambie según lo que esté en cines esa semana. El flujo con TMDB se prueba aparte (CP-25 y CP-26) simulando la API con `page.route()` y las respuestas fijas de `datos/tmdb-simulado.json`. Ninguna prueba usa la red real ni el token.
 
 ## Correrlas en Windows (para presentar)
 
@@ -37,7 +39,9 @@ Cada `push` corre las pruebas automáticamente (pestaña **Actions → Pruebas E
 | `03-compra.spec.js` | CP-13 a CP-17 · flujo de compra, pagos y límites |
 | `04-reservas.spec.js` | CP-18 a CP-21 · mis reservas, edición, cancelación y privacidad |
 | `05-dulceria-admin.spec.js` | CP-22 a CP-24 · carrito de dulcería y panel de administración |
-| `utilidades.js` | pasos reutilizables (iniciar sesión, comprar, capturas) |
+| `06-tmdb.spec.js` | CP-25 y CP-26 · cartelera y detalle desde TMDB (simulado) y respaldo local si TMDB falla |
+| `datos/tmdb-simulado.json` | respuestas fijas que imitan al proxy de TMDB |
+| `utilidades.js` | pasos reutilizables (iniciar sesión, comprar, capturas, simular TMDB) |
 | `servidor.js` | servidor local que Playwright levanta solo (puerto 4173) |
 | `capturas/` | capturas de cada paso, regeneradas en cada ejecución |
 

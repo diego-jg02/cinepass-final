@@ -35,6 +35,34 @@ async function abrir(page, ruta = '') {
   await expect(page.locator('#nav')).not.toBeEmpty();
 }
 
+/**
+ * Simula TMDB con respuestas fijas (pruebas/datos/tmdb-simulado.json) usando page.route().
+ * Intercepta el proxy de Cloudflare (*.workers.dev) y las imágenes de image.tmdb.org.
+ * Con { estado: 500 } el proxy responde con error para probar el respaldo local.
+ * Devuelve la lista de peticiones que hizo la app al proxy (ruta, parámetros y cabeceras).
+ * Se llama ANTES de abrir(); así abrir() ya no bloquea TMDB en esa página.
+ */
+async function simularTmdb(page, { estado = 200 } = {}) {
+  const datos = JSON.parse(fs.readFileSync(path.join(__dirname, 'datos', 'tmdb-simulado.json'), 'utf8'));
+  const cors = { 'access-control-allow-origin': '*' };
+  const llamadas = [];
+  page._sinTmdb = true;
+  await page.route('https://image.tmdb.org/**', (r) =>
+    r.fulfill({ path: path.join(__dirname, '..', 'img', 'posters', '3.png'), headers: cors }));
+  await page.route(/\.workers\.dev\//, (r) => {
+    const peticion = r.request();
+    const u = new URL(peticion.url());
+    llamadas.push({ ruta: u.pathname, params: Object.fromEntries(u.searchParams), cabeceras: peticion.headers() });
+    const responder = (status, cuerpo) =>
+      r.fulfill({ status, headers: cors, contentType: 'application/json', body: JSON.stringify(cuerpo) });
+    if (estado !== 200) return responder(estado, { status_message: 'Error simulado' });
+    if (u.pathname === '/movie/now_playing') return responder(200, datos.now_playing);
+    const id = (u.pathname.match(/^\/movie\/(\d+)$/) || [])[1];
+    return datos.detalles[id] ? responder(200, datos.detalles[id]) : responder(404, { status_message: 'No encontrado' });
+  });
+  return llamadas;
+}
+
 async function iniciarSesion(page, cuenta = DEMO) {
   await abrir(page, 'login');
   await page.fill('#e', cuenta.e);
@@ -100,4 +128,4 @@ async function comprar(page) {
   return { codigo, asientos };
 }
 
-module.exports = { DEMO, ADMIN, TARJETA, captura, abrir, iniciarSesion, registrarse, elegirFuncion, elegirAsientos, pagarConTarjeta, comprar };
+module.exports = { DEMO, ADMIN, TARJETA, captura, abrir, simularTmdb, iniciarSesion, registrarse, elegirFuncion, elegirAsientos, pagarConTarjeta, comprar };
