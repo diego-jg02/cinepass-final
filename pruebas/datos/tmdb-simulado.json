@@ -1,0 +1,75 @@
+{
+  "_nota": "Respuestas fijas que imitan a TMDB (vía el proxy de Cloudflare). Películas ficticias; los ids 9001-9005 no existen en CinePass local.",
+  "now_playing": {
+    "page": 1,
+    "total_pages": 1,
+    "results": [
+      { "id": 9001, "title": "El faro del Pacífico", "poster_path": "/faro.jpg" },
+      { "id": 9002, "title": "Ciudad de lluvia", "poster_path": "/lluvia.jpg" },
+      { "id": 9003, "title": "Pequeños gigantes", "poster_path": "/gigantes.jpg" },
+      { "id": 9004, "title": "Medianoche en el canal", "poster_path": "/canal.jpg" },
+      { "id": 9005, "title": "Película sin póster", "poster_path": null }
+    ]
+  },
+  "detalles": {
+    "9001": {
+      "id": 9001,
+      "title": "El faro del Pacífico",
+      "overview": "Una guardiana de faro descubre que las luces de la costa envían mensajes a barcos que ya no existen.",
+      "poster_path": "/faro.jpg",
+      "backdrop_path": "/faro-fondo.jpg",
+      "runtime": 121,
+      "release_date": "2026-11-20",
+      "vote_average": 7.8,
+      "genres": [{ "id": 18, "name": "Drama" }],
+      "release_dates": { "results": [{ "iso_3166_1": "US", "release_dates": [{ "certification": "PG-13" }] }] },
+      "videos": { "results": [{ "site": "YouTube", "type": "Trailer", "key": "abc123XYZ00" }] },
+      "credits": {
+        "crew": [{ "job": "Producer", "name": "Luis Pérez" }, { "job": "Director", "name": "Ana Castillo" }],
+        "cast": [{ "name": "Sofía Ramos" }, { "name": "Diego Herrera" }, { "name": "Lucía Méndez" }, { "name": "Tomás Vega" }, { "name": "Quinta Persona" }]
+      }
+    },
+    "9002": {
+      "id": 9002,
+      "title": "Ciudad de lluvia",
+      "overview": "En una ciudad donde no ha dejado de llover en diez años, un detective retirado acepta un último caso. La desaparición de una meteoróloga lo lleva por túneles inundados y archivos olvidados. Cada pista apunta a una empresa que vende el clima por suscripción. Mientras el agua sube, tendrá que decidir a quién le debe la verdad. Al final, la tormenta revela algo que nadie esperaba encontrar bajo la ciudad.",
+      "poster_path": "/lluvia.jpg",
+      "backdrop_path": null,
+      "runtime": 109,
+      "release_date": "2026-11-13",
+      "vote_average": 6.9,
+      "genres": [{ "id": 53, "name": "Suspenso" }],
+      "release_dates": { "results": [{ "iso_3166_1": "US", "release_dates": [{ "certification": "R" }] }] },
+      "videos": { "results": [] },
+      "credits": { "crew": [{ "job": "Director", "name": "Marco Ibáñez" }], "cast": [{ "name": "Raúl Ortega" }] }
+    },
+    "9003": {
+      "id": 9003,
+      "title": "Pequeños gigantes",
+      "overview": "Un grupo de hormigas organiza la mudanza más grande de la historia del jardín.",
+      "poster_path": "/gigantes.jpg",
+      "backdrop_path": "/gigantes-fondo.jpg",
+      "runtime": 88,
+      "release_date": "2026-11-06",
+      "vote_average": 8.1,
+      "genres": [{ "id": 16, "name": "Animación" }],
+      "release_dates": { "results": [{ "iso_3166_1": "US", "release_dates": [{ "certification": "G" }] }] },
+      "videos": { "results": [] },
+      "credits": { "crew": [], "cast": [] }
+    },
+    "9004": {
+      "id": 9004,
+      "title": "Medianoche en el canal",
+      "overview": "Un práctico del Canal de Panamá guía un barco que no aparece en ningún registro.",
+      "poster_path": "/canal.jpg",
+      "backdrop_path": "/canal-fondo.jpg",
+      "runtime": 102,
+      "release_date": "2026-10-30",
+      "vote_average": 7.2,
+      "genres": [{ "id": 9648, "name": "Misterio" }],
+      "release_dates": { "results": [] },
+      "videos": { "results": [] },
+      "credits": { "crew": [{ "job": "Director", "name": "Elena Batista" }], "cast": [{ "name": "Jorge Cedeño" }] }
+    }
+  }
+}

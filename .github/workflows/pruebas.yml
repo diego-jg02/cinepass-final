@@ -1,0 +1,39 @@
+name: Pruebas E2E (Playwright)
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:   # permite correrlas a mano desde la pestaña Actions
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Instalar dependencias
+        run: npm ci || npm install
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Correr las pruebas
+        run: npx playwright test
+        env:
+          TZ: America/Panama
+      - name: Generar informe Word
+        if: always()   # también si alguna prueba falla, para que el informe muestre cuál
+        run: node pruebas/generar-informe.js
+      - name: Guardar informe, evidencias y resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: informe-pruebas-cinepass
+          path: |
+            pruebas/informe-pruebas.docx
+            pruebas/evidencias/
+            pruebas/resultados/
+            pruebas/reporte/
+          if-no-files-found: warn
+          retention-days: 30
