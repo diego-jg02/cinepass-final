@@ -243,4 +243,61 @@ module.exports = {
     ],
     esperado: 'La app intenta conectarse con TMDB y, al fallar, muestra las 8 películas locales ("8 películas disponibles", incluida "Nocturno en Colón") y ninguna de TMDB.',
   },
+  // CP-27 a CP-32: solo con `npm run test:supabase` (base de datos centralizada en Supabase; ver supabase/README.md).
+  'CP-27': {
+    objetivo: 'Comprobar el registro y el inicio de sesión con Supabase Auth, y que la contraseña no queda guardada en el navegador.',
+    pasos: [
+      'Abrir Crear cuenta, llenar nombre, correo nuevo, teléfono y una contraseña válida, aceptar términos y registrarse.',
+      'Consultar en la base de datos el perfil creado.',
+      'Revisar localStorage y sessionStorage del navegador.',
+      'Salir, intentar entrar con una contraseña incorrecta y luego con la correcta.',
+    ],
+    esperado: 'La cuenta se crea con rol "cliente" y la sesión queda iniciada. La contraseña no aparece en el almacenamiento del navegador. La contraseña incorrecta muestra "Correo o contraseña incorrectos." y la correcta inicia sesión.',
+  },
+  'CP-28': {
+    objetivo: 'Comprobar que una reserva pagada con tarjeta se guarda en la base de datos centralizada con todos sus datos.',
+    pasos: [
+      'Iniciar sesión con un usuario de prueba.',
+      'Elegir la primera función de mañana de "Nocturno en Colón", 2 boletos y 2 asientos, y pagar con la tarjeta de prueba.',
+      'Consultar la reserva en Supabase por su código.',
+      'Abrir "Mis reservas".',
+    ],
+    esperado: 'La reserva queda en Supabase como Confirmada, con método Tarjeta, el correo del usuario y los mismos 2 asientos. Aparece en "Mis reservas".',
+  },
+  'CP-29': {
+    objetivo: 'Comprobar que dos sesiones de navegador distintas ven la disponibilidad actualizada.',
+    pasos: [
+      'Abrir dos navegadores independientes con usuarios distintos (A y B) en el mapa de asientos de la misma función.',
+      'A elige un asiento y confirma la compra.',
+      'Sin recargar la página de B, esperar la actualización automática del mapa.',
+    ],
+    esperado: 'En la sesión B el asiento reservado por A pasa a "ocupado" y queda deshabilitado sin recargar la página.',
+  },
+  'CP-30': {
+    objetivo: 'Comprobar que si dos usuarios pagan el mismo asiento al mismo tiempo, solo uno lo consigue.',
+    pasos: [
+      'Abrir dos navegadores con usuarios distintos en la misma función.',
+      'Los dos eligen el mismo asiento y llegan al pago.',
+      'Pulsar "Pagar" en los dos al mismo tiempo.',
+      'Consultar en la base de datos cuántas veces quedó reservado ese asiento.',
+    ],
+    esperado: 'Una sesión muestra "Tu reserva está confirmada" y la otra el mensaje "Asientos no disponibles" con el asiento en conflicto. En la base de datos el asiento queda reservado una sola vez.',
+  },
+  'CP-31': {
+    objetivo: 'Comprobar que reservas simultáneas en funciones distintas se procesan sin bloquearse entre sí.',
+    pasos: [
+      'Abrir dos navegadores con usuarios distintos: A en una función de "Nocturno en Colón" y B en una de "Mar de ceniza".',
+      'Elegir un asiento en cada uno y pulsar "Pagar" en los dos al mismo tiempo.',
+    ],
+    esperado: 'Las dos reservas se confirman.',
+  },
+  'CP-32': {
+    objetivo: 'Comprobar que cancelar libera los asientos en el servidor y que el historial, la dulcería y el panel de administración siguen funcionando con Supabase.',
+    pasos: [
+      'El usuario de CP-28 abre su reserva y la cancela.',
+      'Hace un pedido de dulcería.',
+      'Un administrador abre el panel: Todas las Reservas, Dulcería (marca el pedido como entregado), Usuarios y Base de Datos.',
+    ],
+    esperado: 'La reserva queda Cancelada y sus asientos inactivos en la base de datos. El administrador ve la reserva y el correo del cliente, puede entregar el pedido, ve al usuario en la lista y en "Base de Datos" no aparece la opción de restablecer datos.',
+  },
 };

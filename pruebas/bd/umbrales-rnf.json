@@ -1,0 +1,11 @@
+{
+  "_instrucciones": "Escribe en limite_ms el tiempo máximo que define cada RNF (RNF-01 a RNF-04) para esa operación y en rnf su identificador. El RNF-16 se cumple si, con carga, el p95 de cada operación no supera limite_ms × 1.5. Mientras limite_ms sea null, el informe solo compara contra la medición sin carga (referencia auxiliar, no sustituye al RNF).",
+  "percentil": 95,
+  "operaciones": {
+    "pagina":    { "rnf": "", "descripcion": "Carga de la aplicación (HTML, CSS y JS)", "limite_ms": null },
+    "asientos":  { "rnf": "", "descripcion": "Consulta de disponibilidad de asientos (mapa de la sala)", "limite_ms": null },
+    "reserva":   { "rnf": "", "descripcion": "Confirmación de una reserva (RPC atómica)", "limite_ms": null },
+    "historial": { "rnf": "", "descripcion": "Consulta del historial \"Mis reservas\"", "limite_ms": null },
+    "login":     { "rnf": "", "descripcion": "Inicio de sesión", "limite_ms": null }
+  }
+}
