@@ -10,29 +10,24 @@ const sv = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 let S = JSON.parse(sessionStorage.getItem('cp_s') || '{"sel":null,"hold":0,"user":null,"res":null,"pm":"card","editingRes":null}');
 const save = () => sessionStorage.setItem('cp_s', JSON.stringify(S));
 
-// Capa de Base de Datos (Usuarios: Cliente y Administrador). Ver js/db.js: Supabase o localStorage.
-const users = () => DB.usuarios();
+// Capa de Base de Datos (Usuarios: Cliente y Administrador)
+const users = () => {
+  const u = ld('cp_u', []);
+  if (!u.length) {
+    u.push({ n: 'Cliente Demo', e: 'demo@cinepass.test', p: 'Demo1234!', t: '6000-0000', role: 'user' });
+    u.push({ n: 'Administrador CinePass', e: 'admin@cinepass.com', p: 'Admin1234!', t: '6999-9999', role: 'admin' });
+    sv('cp_u', u);
+  } else if (!u.some(x => x.e === 'admin@cinepass.com')) {
+    u.push({ n: 'Administrador CinePass', e: 'admin@cinepass.com', p: 'Admin1234!', t: '6999-9999', role: 'admin' });
+    sv('cp_u', u);
+  }
+  return u;
+};
 
 // Función de una reserva: la actual si sigue en cartelera, o la copia guardada al confirmar.
 const rf = r => fn(r.fn) || r.f;
 const rp = r => { const f = rf(r); return (f && peli(f.p)) || { t: r.pt || 'Película' }; };
-const todasRes = () => DB.reservas();
-// Mensaje y acción ante un error de la base de datos (asiento tomado, sesión vencida, sin conexión…)
-function errorDB(e, reintentar) {
-  if (e && e.codigo === 'ASIENTO_OCUPADO') {
-    const n = e.asientos ? e.asientos.length : 0;
-    const lista = n === 1 ? `El asiento <b>${esc(e.asientos[0])}</b> acaba de ser reservado por otro usuario.`
-      : n > 1 ? `Los asientos <b>${esc(e.asientos.join(', '))}</b> acaban de ser reservados por otro usuario.`
-      : 'Uno o más asientos acaban de ser reservados por otro usuario.';
-    if (S.sel) { S.sel.seats = e.asientos ? S.sel.seats.filter(s => !e.asientos.includes(s)) : []; S.hold = 0; save(); }
-    return modal(`<h2>Asientos no disponibles</h2><p>${lista} Por favor elige ${n === 1 ? 'otro' : 'otros'}.</p>`, [{ l: 'Elegir otros asientos', c: 'pri', f: () => location.hash === '#/asientos' ? route() : go('#/asientos') }]);
-  }
-  if (e && e.codigo === 'NO_AUTENTICADO') {
-    S.user = null; S.next = location.hash; save();
-    return modal(`<h2>Sesión vencida</h2><p>${esc(e.message)}</p>`, [{ l: 'Iniciar sesión', c: 'pri', f: () => go('#/login') }]);
-  }
-  modal(`<h2>No se pudo completar la operación</h2><p>${esc((e && e.message) || 'Inténtalo de nuevo.')}</p>`, [{ l: reintentar ? 'Reintentar' : 'Entendido', c: 'pri', f: reintentar }]);
-}
+const todasRes = () => ld('cp_r', []); // usar SIEMPRE esta para guardar, así no se borran reservas antiguas
 const reservas = () => todasRes().filter(r => rf(r));
 const fmtDia = t => new Date(t).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' });
 const fmtHora = t => new Date(t).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
@@ -45,7 +40,8 @@ function ocupados(f) {
   const o = new Set();
   ROWS.forEach((r, i) => { for (let c = 1; c <= 10; c++) if ((hash(f.id) + i * 7 + c * 13) % 100 < 22) o.add(r + c); });
   // Si estamos editando una reserva, sus asientos actuales quedan libres para re-seleccionar
-  DB.tomados(f.id, S.editingRes || null).forEach(s => o.add(s));
+  const curEdit = S.editingRes || null;
+  reservas().filter(r => r.fn === f.id && r.estado === 'Confirmada' && r.cod !== curEdit).forEach(r => r.seats.forEach(s => o.add(s)));
   return o;
 }
 const libres = f => 80 - ocupados(f).size;
@@ -121,7 +117,7 @@ function nav() {
 
   const o = $('#out');
   if (o) o.onclick = () => {
-    const x = () => { S.user = null; release(); DB.salir(); nav(); go('#/'); };
+    const x = () => { S.user = null; release(); nav(); go('#/'); };
     S.hold ? abandonar(x) : x();
   };
 }
@@ -166,29 +162,11 @@ function runTimer() {
 }
 
 /* ---------- Router ---------- */
-const R = { '': home, cartelera: () => { home(); setTimeout(() => $('#cartelera')?.scrollIntoView({ behavior: 'smooth' }), 60); }, alimentos, p: detalle, boletos, asientos, resumen, pago, resultado, login, registro, reservas: reservasView, reserva, admin: adminView, 'nueva-clave': nuevaClave };
+const R = { '': home, cartelera: () => { home(); setTimeout(() => $('#cartelera')?.scrollIntoView({ behavior: 'smooth' }), 60); }, alimentos, p: detalle, boletos, asientos, resumen, pago, resultado, login, registro, reservas: reservasView, reserva, admin: adminView };
 
-// Modo Supabase: datos que cada pantalla necesita del servidor antes de dibujarse.
-function precarga(a, b) {
-  if (!DB.remoto) return null;
-  if (['reservas', 'reserva', 'alimentos', 'admin', 'resultado'].includes(a)) return S.user ? DB.sincronizar() : null;
-  if (a === 'p') return DB.cargarOcupacion(FN.filter(f => f.p == b).map(f => f.id));
-  if (['boletos', 'asientos'].includes(a) && S.sel) return DB.cargarOcupacion([S.sel.fn]);
-  return null;
-}
-let rutaN = 0;
-async function route() {
-  const n = ++rutaN;
+function route() {
   const [a, b] = location.hash.slice(2).split('/');
   if (S.sel && !fn(S.sel.fn)) { S.sel = null; S.hold = 0; }
-  const pre = precarga(a, b);
-  if (pre) {
-    nav();
-    const sk = setTimeout(() => { main.innerHTML = '<div class="skel" aria-busy="true" aria-label="Cargando"><div class="sk big"></div></div>'; }, 200);
-    try { await pre; } catch (e) { console.warn('No se pudieron cargar los datos:', e.message); if (n === rutaN) errorDB(e, route); }
-    clearTimeout(sk);
-    if (n !== rutaN) return; // el usuario ya navegó a otra pantalla
-  }
   nav();
   main.className = a === '' || a === 'cartelera' ? 'home' : '';
   document.body.classList.toggle('booking', ['boletos', 'asientos', 'resumen', 'pago', 'resultado', 'reservas', 'reserva', 'admin'].includes(a));
@@ -521,28 +499,9 @@ function boletos() {
 /* ---------- P-04 Asientos (Selección instantánea + Edición) ---------- */
 function asientos() {
   if (needSel()) return;
-  const f = fn(S.sel.fn), n = nTix();
-  let oc = ocupados(f);
+  const f = fn(S.sel.fn), n = nTix(), oc = ocupados(f);
   if (n < 1) return go('#/boletos');
   S.sel.seats = S.sel.seats.filter(s => !oc.has(s));
-
-  // Modo Supabase: la disponibilidad se vuelve a consultar cada 5 s mientras el mapa está abierto,
-  // así otra sesión ve los asientos que se acaban de reservar.
-  clearInterval(window._pollAs);
-  if (DB.remoto) window._pollAs = setInterval(async () => {
-    if (!location.hash.startsWith('#/asientos') || !S.sel || S.sel.fn !== f.id) return clearInterval(window._pollAs);
-    if (document.querySelector('dialog')) return;
-    try { await DB.cargarOcupacion([f.id]); } catch (e) { return; }
-    const nuevo = ocupados(f);
-    const cambio = [...main.querySelectorAll('[data-s]')].some(b => nuevo.has(b.dataset.s) !== b.classList.contains('occ'));
-    if (!cambio) return;
-    oc = nuevo;
-    const perdidos = S.sel.seats.filter(s => oc.has(s));
-    S.sel.seats = S.sel.seats.filter(s => !oc.has(s));
-    save();
-    draw4();
-    if (perdidos.length) { const m = $('#seat-msg'); if (m) { m.classList.remove('ok'); m.textContent = `El asiento ${perdidos.join(', ')} acaba de ser reservado por otro usuario. Elige otro.`; } }
-  }, 5000);
 
   const isEditing = !!S.editingRes;
   const draw4 = () => {
@@ -611,27 +570,29 @@ function asientos() {
     });
 
     $('#bk').onclick = () => history.back();
-    $('#nx').onclick = async () => {
-      const nxBtn = $('#nx');
-      nxBtn.disabled = true;
-      if (DB.remoto) { try { await DB.cargarOcupacion([f.id]); } catch (e) { nxBtn.disabled = false; return errorDB(e); } }
+    $('#nx').onclick = () => {
       const oc2 = ocupados(f);
       const bad = S.sel.seats.filter(s => oc2.has(s));
       if (bad.length) {
-        modal('<h2>Asientos no disponibles</h2><p>Uno o más asientos fueron tomados por otro usuario. Por favor elige otros.</p>', [{ l: 'Elegir otros asientos', c: 'pri', f: () => { S.sel.seats = []; oc = oc2; draw4(); } }]);
+        modal('<h2>Asientos no disponibles</h2><p>Uno o más asientos fueron tomados por otro usuario. Por favor elige otros.</p>', [{ l: 'Elegir otros asientos', c: 'pri', f: () => { S.sel.seats = []; draw4(); } }]);
         return;
       }
 
-      // Si venimos de editar reserva existente (en Supabase se valida y guarda de forma atómica en el servidor)
+      // Si venimos de editar reserva existente
       if (isEditing) {
         const cod = S.editingRes;
-        if (!todasRes().some(x => x.cod === cod)) { release(); return go('#/reservas'); }
-        let r;
-        try { r = await DB.cambiarAsientos(cod, [...S.sel.seats], total()); await DB.sincronizar(); }
-        catch (e) { nxBtn.disabled = false; return errorDB(e); }
+        const allR = todasRes();
+        const resObj = allR.find(x => x.cod === cod);
+        if (!resObj) { release(); return go('#/reservas'); }
+        {
+          resObj.seats = [...S.sel.seats];
+          resObj.tot = total();
+          resObj.hist.push(['Asientos modificados', 'Cliente', Date.now()]);
+          sv('cp_r', allR);
+        }
         S.editingRes = null;
         release();
-        modal(`<h2>¡Reserva ${cod} actualizada!</h2><p>Tus nuevos asientos son: <b>${esc(r.seats.join(', '))}</b>.</p>`, [{ l: 'Ver mi reserva', c: 'pri', f: () => go('#/reserva/' + cod) }]);
+        modal(`<h2>¡Reserva ${cod} actualizada!</h2><p>Tus nuevos asientos son: <b>${resObj.seats.join(', ')}</b>.</p>`, [{ l: 'Ver mi reserva', c: 'pri', f: () => go('#/reserva/' + cod) }]);
         return;
       }
 
@@ -944,17 +905,27 @@ function pago() {
   renderForm();
 }
 
-// Guarda la reserva. En modo Supabase es una sola operación atómica en el servidor (RPC confirmar_reserva):
-// comprueba los asientos, calcula el total y genera el código; si algo falla no queda nada a medias.
-async function confirmar(l4, metodo = 'Tarjeta') {
+function confirmar(l4, metodo = 'Tarjeta') {
   const f = fn(S.sel.fn);
-  let r;
-  try {
-    r = await DB.confirmar({ f, pt: peli(f.p).t, tix: S.sel.tix, seats: S.sel.seats, tot: total(), l4, metodo, u: S.user.e });
-  } catch (e) {
-    return errorDB(e, () => route());
-  }
-  S.hold = 0; S.sel = null; S.res = { e: 'ok', cod: r.cod };
+  const cod = 'CP-' + [...Array(6)].map(() => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.random() * 31 | 0]).join('');
+  const r = {
+    cod,
+    u: S.user.e,
+    fn: f.id,
+    tix: S.sel.tix,
+    seats: S.sel.seats,
+    tot: total(),
+    l4,
+    metodo,
+    estado: 'Confirmada',
+    f: { ...f },
+    pt: peli(f.p).t,
+    hist: [['Confirmada', 'Sistema (' + metodo + ')', Date.now()]]
+  };
+  const a = todasRes();
+  a.push(r);
+  sv('cp_r', a);
+  S.hold = 0; S.sel = null; S.res = { e: 'ok', cod };
   save();
   go('#/resultado');
 }
@@ -993,7 +964,6 @@ function resultado() {
   const e = r.e;
   if (e === 'ok') {
     const x = reservas().find(k => k.cod === r.cod);
-    if (!x) return go('#/reservas');
     main.innerHTML = `
       <p class="eyebrow">Pago confirmado</p>
       <h1>Tu reserva está confirmada</h1>
@@ -1045,7 +1015,6 @@ function login() {
             <button class="pri">Entrar</button>
           </div>
           <p class="small mut" style="margin-top:14px">¿No tienes cuenta? <a href="#/registro">Crear cuenta</a></p>
-          ${DB.remoto ? '<p class="small mut"><button type="button" class="link" id="olv">¿Olvidaste tu contraseña?</button></p>' : ''}
         </form>
       </div>
     </div>`;
@@ -1053,24 +1022,7 @@ function login() {
   $('#e').oninput = () => $('#ee').textContent = '';
   $('#p').oninput = () => $('#pe').textContent = '';
 
-  // Solo con Supabase: enlace por correo para crear una contraseña nueva
-  const olv = $('#olv');
-  if (olv) olv.onclick = () => {
-    window._rc = $('#e').value.trim();
-    modal(`<h2>Restablecer contraseña</h2><p class="small">Te enviaremos un enlace para crear una contraseña nueva.</p><label for="rc">Correo electrónico</label><input id="rc" type="email" autocomplete="username" value="${esc(window._rc)}" oninput="window._rc=this.value">`, [
-      {
-        l: 'Enviar enlace', c: 'pri', f: async () => {
-          const em = (window._rc || '').trim().toLowerCase();
-          if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(em)) return modal('<p>Escribe un correo electrónico válido.</p>', [{ l: 'Entendido', c: 'pri' }]);
-          try { await DB.recuperarClave(em); } catch (e) { return errorDB(e); }
-          modal('<h2>Revisa tu correo</h2><p>Si el correo está registrado, recibirás un enlace para crear una contraseña nueva.</p>', [{ l: 'Entendido', c: 'pri' }]);
-        }
-      },
-      { l: 'Cancelar' }
-    ]);
-  };
-
-  $('#lf').onsubmit = async e => {
+  $('#lf').onsubmit = e => {
     e.preventDefault();
     const em = $('#e').value.trim().toLowerCase(), pw = $('#p').value;
     $('#ee').textContent = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(em) ? '' : 'Escribe un correo electrónico válido.';
@@ -1087,76 +1039,22 @@ function login() {
       return;
     }
 
-    const btn = $('#lf .pri');
-    btn.disabled = true;
-    let u;
-    try {
-      u = await DB.login(em, pw);
-    } catch (err) {
-      btn.disabled = false;
-      if (err.codigo === 'CREDENCIALES') {
-        lk.n++;
-        if (lk.n >= 5) { lk.t = Date.now() + 15 * 60000; lk.n = 0; }
-        guardarLk();
-      }
-      $('#pe').textContent = err.message;
+    const u = users().find(x => x.e === em && x.p === pw);
+    if (!u) {
+      lk.n++;
+      if (lk.n >= 5) { lk.t = Date.now() + 15 * 60000; lk.n = 0; }
+      guardarLk();
+      $('#pe').textContent = 'Correo o contraseña incorrectos.';
       return;
     }
 
     delete lks[em]; sv('cp_lk', lks);
-    S.user = u;
+    S.user = { n: u.n, e: u.e, role: u.role || 'user' };
     const nx = S.next || '#/';
     S.next = null;
     save();
     go(nx);
     nav();
-  };
-}
-
-// Reglas de contraseña (registro y nueva contraseña). Supabase Auth exige las mismas en el servidor.
-function validarClave(p) {
-  if (p.length < 8) return 'La contraseña debe tener al menos 8 caracteres.';
-  if (!/[A-Z]/.test(p)) return 'La contraseña debe incluir al menos una letra mayúscula.';
-  if (!/[a-z]/.test(p)) return 'La contraseña debe incluir al menos una letra minúscula.';
-  if (!/\d/.test(p)) return 'La contraseña debe incluir al menos un número.';
-  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(p)) return 'La contraseña debe incluir al menos un símbolo especial (!@#$...).';
-  return '';
-}
-
-/* ---------- Nueva contraseña (enlace del correo de Supabase: usuarios migrados u olvidos) ---------- */
-function nuevaClave() {
-  if (!DB.remoto) return nofound();
-  main.innerHTML = `
-    <div class="auth">
-      <div class="auth-img" aria-hidden="true">
-        <p class="eyebrow">CinePass</p>
-        <p class="auth-q">Tu butaca te espera.</p>
-      </div>
-      <div class="auth-f">
-        <h1>Nueva contraseña</h1>
-        ${S.user ? `<p class="mut small">Cuenta: ${esc(S.user.e)}</p>` : '<div class="msg">Abre esta página desde el enlace que te enviamos por correo.</div>'}
-        <form id="nc" novalidate>
-          <label for="p">Contraseña nueva</label>
-          <input id="p" type="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password">
-          <div class="err" data-e="p"></div>
-          <label for="p2">Confirmar contraseña</label>
-          <input id="p2" type="password" placeholder="Repite tu contraseña" autocomplete="new-password">
-          <div class="err" data-e="p2"></div>
-          <div class="acts"><button class="pri" id="ncb" ${S.user ? '' : 'disabled'}>Guardar contraseña</button></div>
-        </form>
-      </div>
-    </div>`;
-  const er = (k, m) => { const el = document.querySelector(`[data-e="${k}"]`); if (el) el.textContent = m || ''; return !!m; };
-  $('#nc').onsubmit = async e => {
-    e.preventDefault();
-    const p = $('#p').value, p2 = $('#p2').value;
-    const b = er('p', validarClave(p)) | er('p2', p !== p2 ? 'Las contraseñas no coinciden.' : '');
-    if (b) return;
-    $('#ncb').disabled = true;
-    try { S.user = await DB.cambiarClave(p); save(); }
-    catch (err) { $('#ncb').disabled = false; return er('p', err.message); }
-    DB.recuperando = false;
-    modal('<h2>Contraseña actualizada</h2><p>Ya puedes usar tu nueva contraseña para iniciar sesión.</p>', [{ l: 'Ir al inicio', c: 'pri', f: () => go('#/') }]);
   };
 }
 
@@ -1235,7 +1133,7 @@ function registro() {
   $('#tc').onchange = e => $('#rg').disabled = !e.target.checked;
   $('#tm').onclick = () => modal('<h2>Términos y Privacidad</h2><p class="small">CinePass protege tu privacidad y tus datos. Tu información de cuenta se utiliza exclusivamente para gestionar tus reservas de boletos y pedidos de dulcería.</p>', [{ l: 'Aceptar', c: 'pri', f: () => { $('#tc').checked = true; $('#rg').disabled = false; } }, { l: 'Cerrar' }]);
 
-  $('#rf').onsubmit = async e => {
+  $('#rf').onsubmit = e => {
     e.preventDefault();
     const em = v('e').toLowerCase(), p = $('#p').value, p2 = $('#p2').value, name = v('n');
     let b = false;
@@ -1246,29 +1144,33 @@ function registro() {
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!emailRegex.test(em)) {
       b = er('e', 'Por favor ingresa un correo electrónico válido (ejemplo: usuario@correo.com).') || b;
+    } else if (users().some(u => u.e === em)) {
+      b = er('e', 'Este correo ya está registrado. Por favor inicia sesión.') || b;
     }
 
     if (v('t') && !/^\d{7,15}$/.test(v('t').replace(/\D/g, ''))) {
       b = er('t', 'El teléfono debe tener entre 7 y 15 dígitos numéricos.') || b;
     }
 
-    const errClave = validarClave(p);
-    if (errClave) b = er('p', errClave) || b;
+    const hasUpper = /[A-Z]/.test(p);
+    const hasLower = /[a-z]/.test(p);
+    const hasNum = /\d/.test(p);
+    const hasSpec = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(p);
+
+    if (p.length < 8) b = er('p', 'La contraseña debe tener al menos 8 caracteres.') || b;
+    else if (!hasUpper) b = er('p', 'La contraseña debe incluir al menos una letra mayúscula.') || b;
+    else if (!hasLower) b = er('p', 'La contraseña debe incluir al menos una letra minúscula.') || b;
+    else if (!hasNum) b = er('p', 'La contraseña debe incluir al menos un número.') || b;
+    else if (!hasSpec) b = er('p', 'La contraseña debe incluir al menos un símbolo especial (!@#$...).') || b;
 
     if (p !== p2) b = er('p2', 'Las contraseñas no coinciden.') || b;
 
     if (b) return;
 
-    const btn = $('#rg');
-    btn.disabled = true;
-    try {
-      S.user = await DB.registrar({ n: name, e: em, t: v('t') || '', p });
-    } catch (err) {
-      btn.disabled = false;
-      if (err.codigo === 'CONFIRMAR_CORREO') return modal(`<h2>Confirma tu correo</h2><p>${esc(err.message)}</p>`, [{ l: 'Ir a iniciar sesión', c: 'pri', f: () => go('#/login') }]);
-      er(err.codigo === 'CLAVE_DEBIL' ? 'p' : 'e', err.message);
-      return;
-    }
+    const u = users();
+    u.push({ n: name, e: em, p, t: v('t') || '', role: 'user' });
+    sv('cp_u', u);
+    S.user = { n: name, e: em, role: 'user' };
     const nx = S.next || '#/';
     S.next = null;
     save();
@@ -1365,13 +1267,14 @@ function reserva(cod) {
     {
       l: 'Sí, cancelar reserva',
       c: 'pri',
-      f: async () => {
+      f: () => {
         if (f.ini - Date.now() <= EDIT) return modal('<p>El plazo venció; ya no es posible cancelar.</p>', [{ l: 'Entendido', f: () => reserva(cod) }]);
-        if (!todasRes().some(k => k.cod === cod)) return reserva(cod);
-        try {
-          await DB.cancelar(cod, S.user.role === 'admin' ? 'Administrador' : 'Cliente');
-          await DB.sincronizar();
-        } catch (e) { return errorDB(e, () => reserva(cod)); }
+        const a = todasRes();
+        const x = a.find(k => k.cod === cod);
+        if (!x) return reserva(cod);
+        x.estado = 'Cancelada';
+        x.hist.push(['Cancelada', S.user.role === 'admin' ? 'Administrador' : 'Cliente', Date.now()]);
+        sv('cp_r', a);
         reserva(cod);
       }
     },
@@ -1382,7 +1285,7 @@ function reserva(cod) {
 /* ---------- Alimentos y bebidas: Carrito fluido sin parpadeos ---------- */
 const EM = { c1: 'c1', c2: 'c2', s1: 's1', s2: 's2', s3: 's3', b1: 'b1', b2: 'b2', b3: 'b3' };
 let cat = 'Todos';
-const orders = () => DB.pedidos();
+const orders = () => ld('cp_o', []);
 
 function alimentos() {
   S.cart = S.cart || {};
@@ -1448,15 +1351,12 @@ function alimentos() {
       `;
 
       if ($('#lk')) $('#lk').onchange = e => { S.link = e.target.value; save(); };
-      if ($('#ok')) $('#ok').onclick = async () => {
+      if ($('#ok')) $('#ok').onclick = () => {
         if (!S.user) { S.next = '#/alimentos'; save(); return go('#/login'); }
-        $('#ok').disabled = true;
-        let o;
-        try {
-          // En modo Supabase el total se recalcula en el servidor con los precios de la tabla productos.
-          o = await DB.guardarPedido({ cod: S.edit, cart: S.cart, items: items.map(m => [m.n, S.cart[m.id]]), tot: tot(), res: S.link || '', u: S.user.e });
-          await DB.sincronizar();
-        } catch (e) { if ($('#ok')) $('#ok').disabled = false; return errorDB(e); }
+        const a = orders(), o = { cod: S.edit || 'PD-' + Math.random().toString(36).slice(2, 7).toUpperCase(), u: S.user.e, items: items.map(m => [m.n, S.cart[m.id]]), tot: tot(), res: S.link || '', estado: 'Recibido' };
+        const i = a.findIndex(x => x.cod === o.cod);
+        i >= 0 ? a[i] = o : a.push(o);
+        sv('cp_o', a);
         S.cart = {}; S.edit = null; S.link = ''; save();
         d();
         modal(`<h2>¡Pedido ${o.cod} confirmado!</h2><p>Total: <b>${$$(o.tot)}</b>. Tu orden estará lista en la dulcería para tu función.</p>`, [{ l: 'Entendido', c: 'pri' }]);
@@ -1492,7 +1392,7 @@ function alimentos() {
       refreshCart();
     });
 
-    main.querySelectorAll('[data-cx]').forEach(b => b.onclick = () => modal(`<h2>¿Cancelar el pedido ${b.dataset.cx}?</h2>`, [{ l: 'Sí, cancelar', c: 'pri', f: async () => { try { await DB.estadoPedido(b.dataset.cx, 'Cancelado'); await DB.sincronizar(); } catch (e) { return errorDB(e); } d(); } }, { l: 'Conservar' }]));
+    main.querySelectorAll('[data-cx]').forEach(b => b.onclick = () => modal(`<h2>¿Cancelar el pedido ${b.dataset.cx}?</h2>`, [{ l: 'Sí, cancelar', c: 'pri', f: () => { const a = orders(); const it = a.find(o => o.cod === b.dataset.cx); if (it) it.estado = 'Cancelado'; sv('cp_o', a); d(); } }, { l: 'Conservar' }]));
     main.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => { const o = orders().find(x => x.cod === b.dataset.ed); S.cart = {}; o.items.forEach(i => { const item = MENU.find(m => m.n === i[0]); if (item) S.cart[item.id] = i[1]; }); S.edit = o.cod; S.link = o.res || ''; save(); d(); scrollTo(0, 0); });
   };
   d();
@@ -1514,7 +1414,7 @@ function adminView() {
   }
 
   const allRes = reservas();
-  const allOrders = DB.pedidos();
+  const allOrders = ld('cp_o', []);
   const allUsers = users();
 
   const totalIngresos = allRes.filter(r => r.estado === 'Confirmada').reduce((sum, r) => sum + (r.tot || 0), 0) + allOrders.filter(o => o.estado !== 'Cancelado').reduce((sum, o) => sum + (o.tot || 0), 0);
@@ -1626,10 +1526,15 @@ function adminView() {
         {
           l: 'Sí, cancelar',
           c: 'pri',
-          f: async () => {
-            if (!todasRes().some(x => x.cod === cod)) return;
-            try { await DB.cancelar(cod, 'Administrador'); await DB.sincronizar(); } catch (e) { return errorDB(e); }
-            adminView();
+          f: () => {
+            const arr = todasRes();
+            const r = arr.find(x => x.cod === cod);
+            if (r) {
+              r.estado = 'Cancelada';
+              r.hist.push(['Cancelada', 'Administrador', Date.now()]);
+              sv('cp_r', arr);
+              adminView();
+            }
           }
         },
         { l: 'Volver' }
@@ -1682,12 +1587,16 @@ function adminView() {
       </div>
     `;
 
-    const estadoPedido = async (cod, estado) => {
-      try { await DB.estadoPedido(cod, estado); await DB.sincronizar(); } catch (e) { return errorDB(e); }
-      adminView();
-    };
-    main.querySelectorAll('[data-deliv]').forEach(b => b.onclick = () => estadoPedido(b.dataset.deliv, 'Entregado'));
-    main.querySelectorAll('[data-cx-ord]').forEach(b => b.onclick = () => estadoPedido(b.dataset.cxOrd, 'Cancelado'));
+    main.querySelectorAll('[data-deliv]').forEach(b => b.onclick = () => {
+      const arr = allOrders;
+      const it = arr.find(x => x.cod === b.dataset.deliv);
+      if (it) { it.estado = 'Entregado'; sv('cp_o', arr); adminView(); }
+    });
+    main.querySelectorAll('[data-cx-ord]').forEach(b => b.onclick = () => {
+      const arr = allOrders;
+      const it = arr.find(x => x.cod === b.dataset.cxOrd);
+      if (it) { it.estado = 'Cancelado'; sv('cp_o', arr); adminView(); }
+    });
   } else if (admTab === 'usuarios') {
     c.innerHTML = `
       <h2>Usuarios Registrados</h2>
@@ -1715,29 +1624,6 @@ function adminView() {
       </div>
     `;
   } else if (admTab === 'db') {
-    const descargar = (data, nombre) => {
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = nombre;
-      a.click();
-    };
-    // Con Supabase la base de datos es compartida: aquí no se restaura ni se borra nada desde el navegador.
-    // La migración de datos antiguos se hace con supabase/migrar.js (ver supabase/README.md).
-    if (DB.remoto) {
-      c.innerHTML = `
-        <h2>Administración de Base de Datos</h2>
-        <p class="mut small">CinePass guarda usuarios, reservas y pedidos en una base de datos centralizada (Supabase). Puedes descargar una copia de seguridad en formato JSON (sin contraseñas).</p>
-        <div class="acts" style="margin-top:20px">
-          <button class="pri" id="db-export">📥 Descargar Copia de Seguridad (JSON)</button>
-          <button id="db-export-local">📥 Descargar datos antiguos de este navegador (para migrar)</button>
-        </div>
-        <p class="mut small">La restauración y el restablecimiento de datos se hacen desde el servidor para no afectar a otros usuarios.</p>
-      `;
-      $('#db-export').onclick = () => descargar(DB.exportar(), `cinepass_backup_${Date.now()}.json`);
-      $('#db-export-local').onclick = () => descargar(DB.exportarLocalParaMigrar(), `cinepass_datos_locales_${Date.now()}.json`);
-      return;
-    }
     c.innerHTML = `
       <h2>Administración de Base de Datos</h2>
       <p class="mut small">La base de datos de CinePass almacena usuarios, reservas y pedidos de forma persistente. Puedes descargar copias de seguridad en formato JSON o restaurarlas.</p>
@@ -1749,7 +1635,19 @@ function adminView() {
       <input type="file" id="db-file" accept=".json" style="display:none">
     `;
 
-    $('#db-export').onclick = () => descargar(DB.exportar(), `cinepass_backup_${Date.now()}.json`);
+    $('#db-export').onclick = () => {
+      const data = {
+        users: ld('cp_u', []),
+        reservas: ld('cp_r', []),
+        orders: ld('cp_o', []),
+        exportedAt: new Date().toISOString()
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `cinepass_backup_${Date.now()}.json`;
+      a.click();
+    };
 
     $('#db-import-btn').onclick = () => $('#db-file').click();
     $('#db-file').onchange = e => {
@@ -1758,7 +1656,10 @@ function adminView() {
       const reader = new FileReader();
       reader.onload = ev => {
         try {
-          DB.restaurarLocal(JSON.parse(ev.target.result));
+          const json = JSON.parse(ev.target.result);
+          if (json.users) sv('cp_u', json.users);
+          if (json.reservas) sv('cp_r', json.reservas);
+          if (json.orders) sv('cp_o', json.orders);
           modal('<h2>¡Base de datos restaurada!</h2><p>Se importaron los datos correctamente.</p>', [{ l: 'Aceptar', c: 'pri', f: adminView }]);
         } catch (err) {
           modal('<h2>Error</h2><p>El archivo JSON no tiene un formato válido.</p>', [{ l: 'Cerrar' }]);
@@ -1773,7 +1674,10 @@ function adminView() {
           l: 'Sí, reiniciar',
           c: 'pri',
           f: () => {
-            DB.restablecerLocal();
+            localStorage.removeItem('cp_u');
+            localStorage.removeItem('cp_r');
+            localStorage.removeItem('cp_o');
+            users();
             adminView();
           }
         },
@@ -1823,19 +1727,4 @@ addEventListener('touchend', e => {
   }
 }, { passive: true });
 
-// Si la sesión de Supabase se cierra (otra pestaña, token revocado), la app lo refleja.
-DB.alSalir = () => { if (S.user) { S.user = null; release(); nav(); } };
-// Los enlaces de correo de Supabase (confirmar cuenta, restablecer contraseña) llegan como #access_token=…;
-// Supabase los procesa en DB.iniciar() y luego se cambia la dirección a una pantalla de la app.
-const enlaceCorreo = /access_token=|error_description=/.test(location.hash);
-const enlaceVencido = /error_description=/.test(location.hash);
-// Arranque: cartelera (TMDB o local) y, en modo Supabase, la sesión guardada.
-Promise.all([
-  typeof loadMovies === 'function' ? loadMovies() : Promise.resolve(),
-  DB.iniciar().then(u => { if (u !== undefined) { S.user = u; save(); } })
-    .catch(e => console.warn('No se pudo restaurar la sesión:', e.message)),
-]).finally(() => {
-  if (enlaceCorreo || DB.recuperando) history.replaceState(null, '', location.pathname + location.search + (DB.recuperando ? '#/nueva-clave' : '#/'));
-  route();
-  if (enlaceVencido) modal('<h2>Enlace no válido</h2><p>El enlace del correo ya se usó o expiró. Puedes pedir uno nuevo desde "Iniciar sesión".</p>', [{ l: 'Entendido', c: 'pri' }]);
-});
+(typeof loadMovies === 'function' ? loadMovies() : Promise.resolve()).finally(route);

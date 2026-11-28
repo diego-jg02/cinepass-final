@@ -140,7 +140,6 @@ function recorrer(suite, archivo, salida) {
   const arch = suite.file || archivo;
   for (const spec of suite.specs || []) {
     for (const t of spec.tests || []) {
-      if (t.status === 'skipped') continue; // p. ej. CP-27 a CP-32 cuando no se corren contra Supabase
       const r = t.results[t.results.length - 1] || { status: 'skipped', duration: 0, attachments: [], errors: [] };
       const id = (spec.title.match(/^CP-\d+/) || [''])[0];
       salida.push({

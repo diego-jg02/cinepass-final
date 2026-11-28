@@ -5,9 +5,3 @@ pruebas/capturas/
 pruebas/evidencias/
 pruebas/capturas-reales/
 pruebas/informe-pruebas.docx
-
-# Credenciales locales (nunca subir)
-.env
-.env.*
-!.env.ejemplo
-pruebas/bd/resultados/
