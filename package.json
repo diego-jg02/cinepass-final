@@ -11,10 +11,16 @@
     "reporte": "playwright show-report pruebas/reporte",
     "informe": "playwright test && node pruebas/generar-informe.js",
     "solo-informe": "node pruebas/generar-informe.js",
-    "capturas-reales": "node pruebas/capturas-reales.js"
+    "capturas-reales": "node pruebas/capturas-reales.js",
+    "bd:env-local": "node pruebas/bd/env-local.js",
+    "bd:verificar": "node pruebas/bd/verificar-bd.js",
+    "bd:rnf16": "node pruebas/bd/rnf16.js",
+    "bd:migrar": "node supabase/migrar.js",
+    "test:supabase": "node pruebas/bd/e2e-supabase.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",
+    "@supabase/supabase-js": "2.119.2",
     "docx": "^9.16.1"
   }
 }

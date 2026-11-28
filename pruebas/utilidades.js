@@ -29,7 +29,24 @@ async function captura(page, testInfo, nombre, descripcion = nombre) {
   testInfo.annotations.push({ type: 'evidencia', description: `${path.basename(archivo)} | ${descripcion}` });
 }
 
+/**
+ * Fija el modo de datos de la app en esta página reescribiendo js/config.js al vuelo:
+ * por defecto modo local (localStorage), aunque config.js tenga datos de Supabase, para que
+ * las pruebas CP-01 a CP-26 no dependan de la red. page._supabase = { url, key } activa Supabase.
+ */
+async function fijarModoDatos(page) {
+  if (page._modoFijado) return;
+  page._modoFijado = true;
+  const sb = page._supabase || { url: '', key: '' };
+  await page.route('**/js/config.js', async (r) => {
+    const res = await r.fetch();
+    const cuerpo = (await res.text()).replace(/window\.SUPABASE_CONFIG\s*=\s*\{[^}]*\};?/, `window.SUPABASE_CONFIG=${JSON.stringify(sb)};`);
+    await r.fulfill({ response: res, body: cuerpo });
+  });
+}
+
 async function abrir(page, ruta = '') {
+  await fijarModoDatos(page);
   // Las pruebas usan las 8 películas locales de js/data.js (ids 1-8, "Nocturno en Colón", etc.).
   // Se bloquea TMDB (proxy de Cloudflare e imágenes) para que la cartelera sea siempre la misma
   // y no cambie con lo que esté en cines esa semana. La app cae sola a los datos locales.
